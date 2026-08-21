@@ -3,5 +3,6 @@ import { defineConfig } from 'vite';
 
 export default defineConfig({
   plugins: [react()],
+  base: process.env.VITE_BASE ?? '/',
   server: { port: 5173, strictPort: true },
 });
