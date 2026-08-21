@@ -16,12 +16,25 @@ import {
   overviewKpis,
   rafiqKpis,
   rentCollection,
+  scheduledKpis,
   sumBy,
+  topCorporateAccounts,
   trendPct,
   woByStatus,
   woSlaByPriority,
+  workProgram,
 } from '../src/data/analytics';
-import { AUDIT_LOG, DAY_KEYS, DINE_PACING, RIDES_DAILY, TODAY_KEY, VENUES, WORK_ORDERS } from '../src/data/seed';
+import {
+  AUDIT_LOG,
+  CORPORATE_ACCOUNTS,
+  DAY_KEYS,
+  DINE_PACING,
+  RIDES_DAILY,
+  SCHEDULED_DAILY,
+  TODAY_KEY,
+  VENUES,
+  WORK_ORDERS,
+} from '../src/data/seed';
 
 let passed = 0;
 let failed = 0;
@@ -129,6 +142,34 @@ assert('open incidents subset', openIncidents().every((i) => i.status !== 'resol
   assert('overview gmv = rafiq+go', Math.abs(o.gmv - (rafiqKpis(30).gmv + goKpis(30).gmv)) < 0.02);
   assert('overview mirrors pillar counts', o.rides === rafiqKpis(30).rides && o.orders === goKpis(30).orders && o.covers === dineKpis(30).covers);
   assert('overview open incidents', o.openIncidents === openIncidents().length);
+}
+
+// --- scheduled rides & work program ---
+{
+  assert('scheduled daily aligned to keys', SCHEDULED_DAILY.length === 90 && SCHEDULED_DAILY[0].day === DAY_KEYS[0]);
+  assert(
+    'scheduled outcomes sum to reserved',
+    SCHEDULED_DAILY.every((d) => d.completed + d.freeCancels + d.lateCancels === d.reserved),
+  );
+  assert('scheduled pre-launch days are zero', SCHEDULED_DAILY.slice(0, 25).every((d) => d.reserved === 0));
+  assert('scheduled has post-launch volume', SCHEDULED_DAILY.slice(-30).every((d) => d.reserved > 0));
+  const s90 = scheduledKpis(90);
+  assert('scheduled completion pct consistent', s90.completionPct === Math.round((s90.completed / s90.reserved) * 1000) / 10);
+  assert('late cancel fees = SAR 10 each', s90.lateCancelFeesSar === s90.lateCancels * 10);
+  assert('on-time pct within window bounds', s90.onTimePct > 80 && s90.onTimePct <= 100);
+  const s7 = scheduledKpis(7);
+  assert('scheduled 7d subset smaller', s7.reserved > 0 && s7.reserved < s90.reserved);
+
+  const w90 = workProgram(90);
+  const w7 = workProgram(7);
+  assert('work trips positive and windowed', w7.workTrips > 0 && w7.workTrips < w90.workTrips);
+  assert('work share is a sane fraction', w90.workSharePct > 5 && w90.workSharePct < 40);
+  assert('work gmv scales with trips', w90.workGmv > w90.workTrips * 10);
+  assert('active corporate accounts counted', w90.activeAccounts === CORPORATE_ACCOUNTS.filter((a) => a.status === 'active').length);
+
+  const top = topCorporateAccounts();
+  assert('corporate accounts sorted by 30d gmv', top.every((a, i) => i === 0 || top[i - 1].workGmv30d >= a.workGmv30d));
+  assert('corporate list complete', top.length === CORPORATE_ACCOUNTS.length);
 }
 
 console.log(`\n${passed} passed, ${failed} failed`);

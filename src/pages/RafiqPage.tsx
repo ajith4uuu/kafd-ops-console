@@ -4,6 +4,7 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
+  ComposedChart,
   Legend,
   Line,
   LineChart,
@@ -19,15 +20,36 @@ import {
   driversAtRisk,
   lastN,
   rafiqKpis,
+  scheduledKpis,
+  topCorporateAccounts,
   trendPct,
+  workProgram,
   type Range,
 } from '../data/analytics';
-import { DRIVERS, INCIDENTS, RIDES_DAILY, type Driver } from '../data/seed';
+import { DRIVERS, INCIDENTS, RIDES_DAILY, SCHEDULED_DAILY, type CorporateAccount, type Driver } from '../data/seed';
 
 export function RafiqPage({ range }: { range: Range }) {
   const kpis = rafiqKpis(range);
   const co2 = co2Program(range);
   const window = lastN(RIDES_DAILY, range);
+  const scheduled = scheduledKpis(range);
+  const work = workProgram(range);
+  const scheduledWindow = lastN(SCHEDULED_DAILY, range);
+  const scheduledSeries = scheduledWindow.map((d) => ({
+    day: shortDay(d.day),
+    completed: d.completed,
+    freeCancels: d.freeCancels,
+    lateCancels: d.lateCancels,
+    onTime: d.onTimePct || null,
+  }));
+  const workSeries = scheduledWindow.map((d, i) => {
+    const total = window[i]?.total ?? 0;
+    return {
+      day: shortDay(d.day),
+      workTrips: d.workTrips,
+      share: total === 0 ? 0 : Math.round((d.workTrips / total) * 1000) / 10,
+    };
+  });
 
   const classMix = window.map((d) => ({ day: shortDay(d.day), ...d.byClass }));
   const matchSeries = window.map((d) => ({
@@ -49,6 +71,10 @@ export function RafiqPage({ range }: { range: Range }) {
         <Kpi label="Pickup ETA p50 / p95" value={`${kpis.etaP50} / ${kpis.etaP95}m`} />
         <Kpi label="Cancellation rate" value={`${kpis.cancellationRate}%`} trend={trendPct(RIDES_DAILY, range, (d) => d.cancellations)} invertTrend />
         <Kpi label="SOS events" value={String(kpis.sos)} />
+        <Kpi label="Scheduled rides" value={num(scheduled.reserved)} trend={trendPct(SCHEDULED_DAILY, range, (d) => d.reserved)} />
+        <Kpi label="Window on-time" value={`${scheduled.onTimePct}%`} />
+        <Kpi label="Work trips" value={num(work.workTrips)} trend={trendPct(SCHEDULED_DAILY, range, (d) => d.workTrips)} />
+        <Kpi label="Work share" value={`${work.workSharePct}%`} />
       </div>
 
       <div className="grid cols-2">
@@ -149,6 +175,73 @@ export function RafiqPage({ range }: { range: Range }) {
           </div>
         </Card>
       </div>
+
+      <div className="grid cols-2">
+        <Card
+          title="Scheduled rides — outcomes & window adherence"
+          foot={`${scheduled.completionPct}% completed · ${scheduled.lateCancelPct}% late cancels (SAR ${scheduled.lateCancelFeesSar} in fees) · captains arrive in the 10-min window ${scheduled.onTimePct}% of the time`}
+          data-testid="scheduled-card"
+        >
+          <ResponsiveContainer width="100%" height={240}>
+            <ComposedChart data={scheduledSeries}>
+              <CartesianGrid stroke={CHART.grid} vertical={false} />
+              <XAxis dataKey="day" stroke={CHART.axis} fontSize={11} minTickGap={28} />
+              <YAxis yAxisId="l" stroke={CHART.axis} fontSize={11} width={30} />
+              <YAxis yAxisId="r" orientation="right" stroke={CHART.axis} fontSize={11} width={34} domain={[80, 100]} />
+              <Tooltip />
+              <Legend wrapperStyle={{ fontSize: 12 }} />
+              <Bar yAxisId="l" dataKey="completed" stackId="s" fill={CHART.peri} name="completed" />
+              <Bar yAxisId="l" dataKey="freeCancels" stackId="s" fill={CHART.periDeep} name="free cancel" />
+              <Bar yAxisId="l" dataKey="lateCancels" stackId="s" fill={CHART.red} name="late cancel" />
+              <Line yAxisId="r" type="monotone" dataKey="onTime" stroke={CHART.green} dot={false} strokeWidth={2} name="on-time %" />
+            </ComposedChart>
+          </ResponsiveContainer>
+        </Card>
+
+        <Card
+          title="Work rides program"
+          foot={`${sar(work.workGmv)} work GMV · ${work.activeAccounts} active corporate accounts · receipts forward to expense providers monthly`}
+          data-testid="work-card"
+        >
+          <ResponsiveContainer width="100%" height={240}>
+            <ComposedChart data={workSeries}>
+              <defs>
+                <linearGradient id="workFill" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor={CHART.amber} stopOpacity={0.45} />
+                  <stop offset="100%" stopColor={CHART.amber} stopOpacity={0.03} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid stroke={CHART.grid} vertical={false} />
+              <XAxis dataKey="day" stroke={CHART.axis} fontSize={11} minTickGap={28} />
+              <YAxis yAxisId="l" stroke={CHART.axis} fontSize={11} width={30} />
+              <YAxis yAxisId="r" orientation="right" stroke={CHART.axis} fontSize={11} width={34} unit="%" />
+              <Tooltip />
+              <Legend wrapperStyle={{ fontSize: 12 }} />
+              <Area yAxisId="l" type="monotone" dataKey="workTrips" stroke={CHART.amber} fill="url(#workFill)" strokeWidth={2} name="work trips" />
+              <Line yAxisId="r" type="monotone" dataKey="share" stroke={CHART.peri} dot={false} strokeWidth={1.5} name="share of rides %" />
+            </ComposedChart>
+          </ResponsiveContainer>
+        </Card>
+      </div>
+
+      <Card title="Corporate accounts" foot="Sorted by 30-day work GMV — onboarding accounts ride before expense integration completes">
+        <DataTable<CorporateAccount>
+          rowKey={(account) => account.id}
+          columns={[
+            { key: 'company', label: 'Company', render: (a) => a.company },
+            { key: 'riders', label: 'Riders', render: (a) => num(a.riders) },
+            { key: 'trips', label: 'Work trips (30d)', render: (a) => num(a.workTrips30d) },
+            { key: 'gmv', label: 'Work GMV (30d)', render: (a) => sar(a.workGmv30d) },
+            { key: 'provider', label: 'Expense provider', render: (a) => a.expenseProvider },
+            {
+              key: 'status',
+              label: 'Status',
+              render: (a) => <Badge tone={a.status === 'active' ? 'green' : 'amber'}>{a.status}</Badge>,
+            },
+          ]}
+          rows={topCorporateAccounts()}
+        />
+      </Card>
 
       <Card title="Driver standings" foot={`${driversAtRisk().length} drivers flagged for review (acceptance <85%, cancellation ≥5% or status)`}>
         <DataTable<Driver>

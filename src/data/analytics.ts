@@ -5,6 +5,7 @@ import {
   AI_DAILY,
   AUDIT_LOG,
   BUILDINGS,
+  CORPORATE_ACCOUNTS,
   DAYS,
   DINE_DAILY,
   DRIVERS,
@@ -12,8 +13,10 @@ import {
   ORDERS_DAILY,
   RENT_INVOICES,
   RIDES_DAILY,
+  SCHEDULED_DAILY,
   WORK_ORDERS,
   type AuditEntry,
+  type CorporateAccount,
   type Invoice,
   type WoPriority,
   type WorkOrder,
@@ -91,6 +94,43 @@ export function co2Leaderboard(): { name: string; kg: number }[] {
 
 export function driversAtRisk(): typeof DRIVERS {
   return DRIVERS.filter((d) => d.status !== 'active' || d.acceptance < 85 || d.cancellation >= 5);
+}
+
+/** Scheduled rides program: volume, cancellation split and window adherence. */
+export function scheduledKpis(n: Range) {
+  const window = lastN(SCHEDULED_DAILY, n);
+  const active = window.filter((d) => d.reserved > 0);
+  const reserved = sumBy(window, (d) => d.reserved);
+  const completed = sumBy(window, (d) => d.completed);
+  const lateCancels = sumBy(window, (d) => d.lateCancels);
+  return {
+    reserved,
+    completed,
+    completionPct: reserved === 0 ? 0 : Math.round((completed / reserved) * 1000) / 10,
+    freeCancels: sumBy(window, (d) => d.freeCancels),
+    lateCancels,
+    lateCancelPct: reserved === 0 ? 0 : Math.round((lateCancels / reserved) * 1000) / 10,
+    /** SAR collected from inside-60-min cancellations. */
+    lateCancelFeesSar: lateCancels * 10,
+    onTimePct: active.length === 0 ? 0 : Math.round(avgBy(active, (d) => d.onTimePct) * 10) / 10,
+  };
+}
+
+/** Work rides program: volume, GMV and share of all rides. */
+export function workProgram(n: Range) {
+  const window = lastN(SCHEDULED_DAILY, n);
+  const rides = sumBy(lastN(RIDES_DAILY, n), (d) => d.total);
+  const workTrips = sumBy(window, (d) => d.workTrips);
+  return {
+    workTrips,
+    workGmv: sumBy(window, (d) => d.workGmv),
+    workSharePct: rides === 0 ? 0 : Math.round((workTrips / rides) * 1000) / 10,
+    activeAccounts: CORPORATE_ACCOUNTS.filter((account) => account.status === 'active').length,
+  };
+}
+
+export function topCorporateAccounts(): CorporateAccount[] {
+  return [...CORPORATE_ACCOUNTS].sort((a, b) => b.workGmv30d - a.workGmv30d);
 }
 
 // -------------------------------------------------------------------- dine

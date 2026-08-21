@@ -435,6 +435,92 @@ export const AUDIT_LOG: readonly AuditEntry[] = Array.from({ length: 400 }, (_, 
   };
 }).sort((a, b) => `${b.day}${b.time}`.localeCompare(`${a.day}${a.time}`));
 
+// -------------------------------------------- scheduled rides & work program
+
+// Isolated PRNG so adding this section never shifts the existing dataset.
+const rand2 = mulberry32(20260921);
+const R2 = {
+  next: () => rand2(),
+  int: (min: number, max: number) => min + Math.floor(rand2() * (max - min + 1)),
+  round2: (v: number) => Math.round(v * 100) / 100,
+};
+
+export interface DailyScheduled {
+  day: string;
+  /** Reservations whose pickup fell on this day. */
+  reserved: number;
+  completed: number;
+  /** Cancelled ≥60 min before pickup (free). */
+  freeCancels: number;
+  /** Cancelled inside 60 min (SAR 10 fee). */
+  lateCancels: number;
+  /** % of completed pickups where the captain arrived inside the 10-min window. */
+  onTimePct: number;
+  /** Work-tagged trips (on-demand + scheduled) that day. */
+  workTrips: number;
+  workGmv: number;
+}
+
+export const SCHEDULED_DAILY: readonly DailyScheduled[] = DAY_KEYS.map((day, i) => {
+  const g = growth(i);
+  const weekend = isWeekend(day);
+  const rides = RIDES_DAILY[i];
+  // Reservations ramp harder than on-demand — the feature launched mid-quarter.
+  const launched = i >= 25;
+  const reserved = launched ? Math.round((weekend ? 5 : 14) * g + R2.int(-2, 3)) : 0;
+  const freeCancels = launched ? Math.round(reserved * (0.06 + R2.next() * 0.05)) : 0;
+  const lateCancels = launched && R2.next() < 0.55 ? R2.int(0, Math.max(1, Math.round(reserved * 0.05))) : 0;
+  const completed = Math.max(0, reserved - freeCancels - lateCancels);
+  // Work rides skew to weekdays; share grows with corporate onboarding.
+  const workShare = weekend ? 0.05 : 0.16 + (i / DAYS) * 0.1 + R2.next() * 0.04;
+  const workTrips = Math.round(rides.total * workShare);
+  return {
+    day,
+    reserved,
+    completed,
+    freeCancels,
+    lateCancels,
+    onTimePct: launched ? R2.round2(88 + R2.next() * 10 + (i / DAYS) * 2) : 0,
+    workTrips,
+    workGmv: R2.round2(workTrips * (16 + R2.next() * 9)),
+  };
+});
+
+export interface CorporateAccount {
+  id: string;
+  company: string;
+  riders: number;
+  workTrips30d: number;
+  workGmv30d: number;
+  expenseProvider: 'SAP Concur' | 'Expensify' | 'Zoho Expense' | 'Qoyod' | '—';
+  status: 'active' | 'onboarding';
+}
+
+const CORPORATE_SEEDS: [string, CorporateAccount['expenseProvider'], CorporateAccount['status']][] = [
+  ['PIF Portfolio Services', 'SAP Concur', 'active'],
+  ['Riyad Capital', 'SAP Concur', 'active'],
+  ['SNB Digital', 'Expensify', 'active'],
+  ['KAFD DMC', 'Qoyod', 'active'],
+  ['Deloitte KSA', 'SAP Concur', 'active'],
+  ['stc pay', 'Zoho Expense', 'active'],
+  ['Alinma Ventures', 'Qoyod', 'onboarding'],
+  ['Bain Riyadh Hub', '—', 'onboarding'],
+];
+
+export const CORPORATE_ACCOUNTS: readonly CorporateAccount[] = CORPORATE_SEEDS.map(([company, expenseProvider, status], i) => {
+  const riders = status === 'active' ? R2.int(18, 120) : R2.int(4, 16);
+  const workTrips30d = status === 'active' ? riders * R2.int(3, 9) : R2.int(6, 40);
+  return {
+    id: `corp-${i + 1}`,
+    company,
+    riders,
+    workTrips30d,
+    workGmv30d: R2.round2(workTrips30d * (15 + R2.next() * 10)),
+    expenseProvider,
+    status,
+  };
+});
+
 // --------------------------------------------------------- live feed (today)
 
 export interface LiveEvent {
