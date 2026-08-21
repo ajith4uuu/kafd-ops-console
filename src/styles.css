@@ -1,16 +1,16 @@
 :root {
-  --bg: #101a30;
-  --panel: rgba(17, 26, 46, 0.72);
-  --card: rgba(148, 170, 215, 0.09);
-  --card-raised: rgba(160, 180, 225, 0.16);
-  --border: rgba(202, 216, 242, 0.12);
+  --bg: #152138;
+  --panel: rgba(22, 32, 56, 0.72);
+  --card: rgba(163, 184, 226, 0.12);
+  --card-raised: rgba(170, 190, 232, 0.19);
+  --border: rgba(210, 221, 244, 0.14);
   --text: #f2f5fb;
   --text-2: #c7d0e2;
-  --muted: #94a0b8;
+  --muted: #97a3bb;
   --peri: #cbd5ec;
   --peri-deep: #8fa3cd;
   --green: #93d7a8;
-  --amber: #e7c88f;
+  --amber: #edc98b;
   --red: #f5a3b3;
   --ink: #2a3757;
 }
@@ -19,8 +19,8 @@
 
 body {
   background:
-    radial-gradient(1100px 700px at 85% -10%, rgba(64, 92, 158, 0.35) 0%, rgba(64, 92, 158, 0) 60%),
-    radial-gradient(900px 600px at -10% 110%, rgba(46, 74, 132, 0.28) 0%, rgba(46, 74, 132, 0) 55%),
+    radial-gradient(1100px 700px at 85% -10%, rgba(82, 110, 178, 0.38) 0%, rgba(82, 110, 178, 0) 60%),
+    radial-gradient(900px 600px at -10% 110%, rgba(60, 90, 152, 0.30) 0%, rgba(60, 90, 152, 0) 55%),
     var(--bg);
   background-attachment: fixed;
   color: var(--text);
