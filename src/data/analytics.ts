@@ -7,6 +7,8 @@ import {
   BUILDINGS,
   CORPORATE_ACCOUNTS,
   DAYS,
+  RAFIQ_ECON_DAILY,
+  RAFIQ_TAKE_RATE,
   DINE_DAILY,
   DRIVERS,
   INCIDENTS,
@@ -131,6 +133,34 @@ export function workProgram(n: Range) {
 
 export function topCorporateAccounts(): CorporateAccount[] {
   return [...CORPORATE_ACCOUNTS].sort((a, b) => b.workGmv30d - a.workGmv30d);
+}
+
+/** Rafiq unit economics: platform take, driver payouts and subsidy cost. */
+export function rafiqEconomics(n: Range) {
+  const window = lastN(RAFIQ_ECON_DAILY, n);
+  const rides = sumBy(lastN(RIDES_DAILY, n), (d) => d.total);
+  const gmv = sumBy(lastN(RIDES_DAILY, n), (d) => d.gmv);
+  const netRevenue = sumBy(window, (d) => d.netRevenue);
+  const driverPayout = sumBy(window, (d) => d.driverPayout);
+  const subsidy = sumBy(window, (d) => d.subsidyCost);
+  const flatRides = sumBy(window, (d) => d.flatRides);
+  return {
+    netRevenue,
+    driverPayout,
+    subsidy,
+    tips: sumBy(window, (d) => d.tips),
+    revenuePerRide: rides === 0 ? 0 : Math.round((netRevenue / rides) * 100) / 100,
+    grossTakePct: Math.round(RAFIQ_TAKE_RATE * 1000) / 10,
+    netTakePct: gmv === 0 ? 0 : Math.round((netRevenue / gmv) * 1000) / 10,
+    driverSharePct: gmv === 0 ? 0 : Math.round((driverPayout / gmv) * 1000) / 10,
+    subsidyPerFlatRide: flatRides === 0 ? 0 : Math.round((subsidy / flatRides) * 100) / 100,
+    flatRideSharePct: rides === 0 ? 0 : Math.round((flatRides / rides) * 1000) / 10,
+  };
+}
+
+/** Share of riders with a Nafath-verified identity (identity ops signal). */
+export function nafathVerifiedShare(n: Range): number {
+  return Math.round(avgBy(lastN(RAFIQ_ECON_DAILY, n), (d) => d.nafathVerifiedShare) * 1000) / 10;
 }
 
 // -------------------------------------------------------------------- dine

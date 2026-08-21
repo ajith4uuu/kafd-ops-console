@@ -486,6 +486,66 @@ export const SCHEDULED_DAILY: readonly DailyScheduled[] = DAY_KEYS.map((day, i) 
   };
 });
 
+// ------------------------------------------------- Rafiq unit economics
+
+// Isolated PRNG: adding economics never shifts the existing dataset.
+const rand4 = mulberry32(20261021);
+const R4 = {
+  next: () => rand4(),
+  round2: (v: number) => Math.round(v * 100) / 100,
+};
+
+/** Platform take on GMV; drivers keep the rest. */
+export const RAFIQ_TAKE_RATE = 0.22;
+/** Guaranteed driver floor per KAFD-subsidized flat-fare ride (SAR). */
+export const FLAT_DRIVER_FLOOR_SAR = 9;
+
+export interface DailyRafiqEcon {
+  day: string;
+  /** Intra-KAFD flat-fare rides vs metered city rides (sums to total). */
+  flatRides: number;
+  meteredRides: number;
+  flatGmv: number;
+  meteredGmv: number;
+  /** Driver earnings incl. the flat-ride floor top-up. */
+  driverPayout: number;
+  /** KAFD top-up so flat-ride drivers always earn the floor. */
+  subsidyCost: number;
+  /** Platform net = take on GMV − subsidy. */
+  netRevenue: number;
+  tips: number;
+  /** Share of that day's riders with a Nafath-verified identity. */
+  nafathVerifiedShare: number;
+}
+
+export const RAFIQ_ECON_DAILY: readonly DailyRafiqEcon[] = DAY_KEYS.map((day, i) => {
+  const rides = RIDES_DAILY[i];
+  const flatShare = 0.52 + R4.next() * 0.12; // most trips stay inside the district
+  const flatRides = Math.round(rides.total * flatShare);
+  const meteredRides = rides.total - flatRides;
+  // Flat fares average ~SAR 8.4/ride; the metered remainder carries the GMV.
+  const flatGmv = Math.min(rides.gmv, R4.round2(flatRides * (7.8 + R4.next() * 1.2)));
+  const meteredGmv = R4.round2(rides.gmv - flatGmv);
+  const grossTake = R4.round2(rides.gmv * RAFIQ_TAKE_RATE);
+  const flatDriverEarnings = R4.round2(flatGmv * (1 - RAFIQ_TAKE_RATE));
+  const flatFloor = flatRides * FLAT_DRIVER_FLOOR_SAR;
+  const subsidyCost = R4.round2(Math.max(0, flatFloor - flatDriverEarnings));
+  const driverPayout = R4.round2(meteredGmv * (1 - RAFIQ_TAKE_RATE) + Math.max(flatDriverEarnings, flatFloor));
+  const tips = R4.round2(rides.total * (0.4 + R4.next() * 0.5));
+  return {
+    day,
+    flatRides,
+    meteredRides,
+    flatGmv,
+    meteredGmv,
+    driverPayout,
+    subsidyCost,
+    netRevenue: R4.round2(grossTake - subsidyCost),
+    tips,
+    nafathVerifiedShare: R4.round2(Math.min(0.9, 0.22 + (i / DAYS) * 0.5 + R4.next() * 0.05)),
+  };
+});
+
 export interface CorporateAccount {
   id: string;
   company: string;

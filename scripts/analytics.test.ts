@@ -15,6 +15,8 @@ import {
   openIncidents,
   overviewKpis,
   rafiqKpis,
+  nafathVerifiedShare,
+  rafiqEconomics,
   rentCollection,
   scheduledKpis,
   sumBy,
@@ -28,6 +30,8 @@ import {
   AUDIT_LOG,
   CORPORATE_ACCOUNTS,
   DAY_KEYS,
+  RAFIQ_ECON_DAILY,
+  RAFIQ_TAKE_RATE,
   DINE_PACING,
   RIDES_DAILY,
   SCHEDULED_DAILY,
@@ -170,6 +174,38 @@ assert('open incidents subset', openIncidents().every((i) => i.status !== 'resol
   const top = topCorporateAccounts();
   assert('corporate accounts sorted by 30d gmv', top.every((a, i) => i === 0 || top[i - 1].workGmv30d >= a.workGmv30d));
   assert('corporate list complete', top.length === CORPORATE_ACCOUNTS.length);
+}
+
+// --- Rafiq unit economics ---
+{
+  assert('econ daily aligned to keys', RAFIQ_ECON_DAILY.length === 90 && RAFIQ_ECON_DAILY[0].day === DAY_KEYS[0]);
+  assert(
+    'flat + metered rides equal total rides',
+    RAFIQ_ECON_DAILY.every((d, i) => d.flatRides + d.meteredRides === RIDES_DAILY[i].total),
+  );
+  assert(
+    'flat + metered GMV equals ride GMV',
+    RAFIQ_ECON_DAILY.every((d, i) => Math.abs(d.flatGmv + d.meteredGmv - RIDES_DAILY[i].gmv) < 0.02),
+  );
+  assert(
+    'net revenue = take − subsidy',
+    RAFIQ_ECON_DAILY.every((d, i) => Math.abs(d.netRevenue - (RIDES_DAILY[i].gmv * RAFIQ_TAKE_RATE - d.subsidyCost)) < 0.05),
+  );
+  assert('subsidy never negative', RAFIQ_ECON_DAILY.every((d) => d.subsidyCost >= 0));
+  assert(
+    'driver payout at least the non-take share',
+    RAFIQ_ECON_DAILY.every((d, i) => d.driverPayout >= RIDES_DAILY[i].gmv * (1 - RAFIQ_TAKE_RATE) - 0.05),
+  );
+  const econ90 = rafiqEconomics(90);
+  const econ7 = rafiqEconomics(7);
+  assert('econ windows are subsets', econ7.netRevenue < econ90.netRevenue);
+  assert('revenue per ride is positive and sane', econ90.revenuePerRide > 0.5 && econ90.revenuePerRide < 10);
+  assert('net take below gross take (subsidy bites)', econ90.netTakePct < econ90.grossTakePct);
+  assert('driver share is the majority of GMV', econ90.driverSharePct > 70);
+  assert('flat rides are most of volume', econ90.flatRideSharePct > 45);
+  const verified = nafathVerifiedShare(90);
+  assert('nafath share within 0–90%', verified > 0 && verified <= 90);
+  assert('nafath adoption ramps over the quarter', nafathVerifiedShare(7) > verified);
 }
 
 console.log(`\n${passed} passed, ${failed} failed`);

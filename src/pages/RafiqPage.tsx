@@ -19,6 +19,8 @@ import {
   co2Program,
   driversAtRisk,
   lastN,
+  nafathVerifiedShare,
+  rafiqEconomics,
   rafiqKpis,
   scheduledKpis,
   topCorporateAccounts,
@@ -26,7 +28,15 @@ import {
   workProgram,
   type Range,
 } from '../data/analytics';
-import { DRIVERS, INCIDENTS, RIDES_DAILY, SCHEDULED_DAILY, type CorporateAccount, type Driver } from '../data/seed';
+import {
+  DRIVERS,
+  INCIDENTS,
+  RAFIQ_ECON_DAILY,
+  RIDES_DAILY,
+  SCHEDULED_DAILY,
+  type CorporateAccount,
+  type Driver,
+} from '../data/seed';
 
 export function RafiqPage({ range }: { range: Range }) {
   const kpis = rafiqKpis(range);
@@ -61,6 +71,18 @@ export function RafiqPage({ range }: { range: Range }) {
   const co2Series = co2.cumulative.map((p) => ({ day: shortDay(p.day), daily: p.kg, cumulative: p.cumulativeKg }));
 
   const rafiqIncidents = INCIDENTS.filter((incident) => incident.pillar === 'rafiq');
+  const econ = rafiqEconomics(range);
+  const econWindow = lastN(RAFIQ_ECON_DAILY, range);
+  const econSeries = econWindow.map((d) => ({
+    day: shortDay(d.day),
+    driver: d.driverPayout,
+    net: d.netRevenue,
+    subsidy: d.subsidyCost,
+  }));
+  const revPerRideSeries = econWindow.map((d, i) => {
+    const total = window[i]?.total ?? 0;
+    return { day: shortDay(d.day), rpr: total === 0 ? 0 : Math.round((d.netRevenue / total) * 100) / 100 };
+  });
 
   return (
     <>
@@ -75,6 +97,53 @@ export function RafiqPage({ range }: { range: Range }) {
         <Kpi label="Window on-time" value={`${scheduled.onTimePct}%`} />
         <Kpi label="Work trips" value={num(work.workTrips)} trend={trendPct(SCHEDULED_DAILY, range, (d) => d.workTrips)} />
         <Kpi label="Work share" value={`${work.workSharePct}%`} />
+        <Kpi label="Net revenue" value={sar(econ.netRevenue)} trend={trendPct(RAFIQ_ECON_DAILY, range, (d) => d.netRevenue)} />
+        <Kpi label="Revenue / ride" value={`SAR ${econ.revenuePerRide.toFixed(2)}`} />
+        <Kpi label="Take rate (gross / net)" value={`${econ.grossTakePct}% / ${econ.netTakePct}%`} />
+        <Kpi label="Nafath-verified riders" value={`${nafathVerifiedShare(range)}%`} />
+      </div>
+
+      <div className="grid cols-2">
+        <Card
+          title="Revenue split — drivers, platform, subsidy"
+          foot={`Drivers keep ${econ.driverSharePct}% of GMV (${sar(econ.driverPayout)}) · flat-fare floor subsidy ${sar(econ.subsidy)} (SAR ${econ.subsidyPerFlatRide.toFixed(2)}/flat ride, ${econ.flatRideSharePct}% of rides are flat)`}
+          data-testid="econ-card"
+        >
+          <ResponsiveContainer width="100%" height={240}>
+            <BarChart data={econSeries}>
+              <CartesianGrid stroke={CHART.grid} vertical={false} />
+              <XAxis dataKey="day" stroke={CHART.axis} fontSize={11} minTickGap={28} />
+              <YAxis stroke={CHART.axis} fontSize={11} width={44} />
+              <Tooltip />
+              <Legend wrapperStyle={{ fontSize: 12 }} />
+              <Bar dataKey="driver" stackId="e" fill={CHART.peri} name="driver payout" />
+              <Bar dataKey="net" stackId="e" fill={CHART.green} name="platform net" />
+              <Bar dataKey="subsidy" stackId="e" fill={CHART.red} name="KAFD subsidy" />
+            </BarChart>
+          </ResponsiveContainer>
+        </Card>
+
+        <Card
+          title="Net revenue per ride"
+          foot={`${sar(econ.tips)} in tips passed through to drivers untouched`}
+          data-testid="rpr-card"
+        >
+          <ResponsiveContainer width="100%" height={240}>
+            <AreaChart data={revPerRideSeries}>
+              <defs>
+                <linearGradient id="rprFill" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor={CHART.amber} stopOpacity={0.45} />
+                  <stop offset="100%" stopColor={CHART.amber} stopOpacity={0.03} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid stroke={CHART.grid} vertical={false} />
+              <XAxis dataKey="day" stroke={CHART.axis} fontSize={11} minTickGap={28} />
+              <YAxis stroke={CHART.axis} fontSize={11} width={38} />
+              <Tooltip />
+              <Area type="monotone" dataKey="rpr" stroke={CHART.amber} fill="url(#rprFill)" strokeWidth={2} name="SAR / ride" />
+            </AreaChart>
+          </ResponsiveContainer>
+        </Card>
       </div>
 
       <div className="grid cols-2">
