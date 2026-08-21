@@ -2,13 +2,17 @@ import {
   Area,
   AreaChart,
   CartesianGrid,
+  Cell,
   Line,
   LineChart,
+  Pie,
+  PieChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
 } from 'recharts';
+import { BOOKINGS_DAILY } from '../data/growth';
 import { Badge, CHART, Card, Kpi, num, sar, shortDay } from '../components/ui';
 import {
   aiKpis,
@@ -117,6 +121,38 @@ export function OverviewPage({ range }: { range: Range }) {
               </div>
             ))}
           </div>
+        </Card>
+
+        <Card title="Revenue mix">
+          {(() => {
+            const bookingsRev = lastN(BOOKINGS_DAILY, range).reduce((a, b) => a + b.revenue, 0);
+            const mix = [
+              { name: 'Rafiq', value: Math.round(rafiq.gmv), color: CHART.green },
+              { name: 'Go', value: Math.round(go.gmv), color: CHART.peri },
+              { name: 'Bookings', value: bookingsRev, color: CHART.amber },
+            ];
+            return (
+              <>
+                <ResponsiveContainer width="100%" height={190}>
+                  <PieChart>
+                    <Pie data={mix} dataKey="value" nameKey="name" innerRadius={44} outerRadius={72} paddingAngle={3}>
+                      {mix.map((slice) => (
+                        <Cell key={slice.name} fill={slice.color} />
+                      ))}
+                    </Pie>
+                    <Tooltip />
+                  </PieChart>
+                </ResponsiveContainer>
+                <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap', fontSize: 12.5 }}>
+                  {mix.map((slice) => (
+                    <span key={slice.name} style={{ color: 'var(--text-2)' }}>
+                      <span style={{ color: slice.color }}>●</span> {slice.name} {sar(slice.value)}
+                    </span>
+                  ))}
+                </div>
+              </>
+            );
+          })()}
         </Card>
 
         <Card title="North-star vs 90-day targets">

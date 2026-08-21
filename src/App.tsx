@@ -3,20 +3,24 @@ import { RangePicker } from './components/ui';
 import { openIncidents, type Range } from './data/analytics';
 import { AiPage } from './pages/AiPage';
 import { AuditPage } from './pages/AuditPage';
+import { BookingsPage } from './pages/BookingsPage';
+import { GrowthPage } from './pages/GrowthPage';
 import { DinePage } from './pages/DinePage';
 import { GoPage } from './pages/GoPage';
 import { LivingPage } from './pages/LivingPage';
 import { OverviewPage } from './pages/OverviewPage';
 import { RafiqPage } from './pages/RafiqPage';
 
-type PageId = 'overview' | 'dine' | 'rafiq' | 'go' | 'living' | 'ai' | 'audit';
+type PageId = 'overview' | 'growth' | 'dine' | 'rafiq' | 'go' | 'living' | 'bookings' | 'ai' | 'audit';
 
 const PAGES: { id: PageId; icon: string; label: string }[] = [
   { id: 'overview', icon: '◉', label: 'Command Center' },
+  { id: 'growth', icon: '📈', label: 'Growth & Loyalty' },
   { id: 'dine', icon: '🍽', label: 'Dine' },
   { id: 'rafiq', icon: '🚗', label: 'Rafiq' },
   { id: 'go', icon: '🛵', label: 'Go Delivery' },
   { id: 'living', icon: '🏢', label: 'Living+' },
+  { id: 'bookings', icon: '🗓', label: 'Bookings & Events' },
   { id: 'ai', icon: '✦', label: 'Concierge AI' },
   { id: 'audit', icon: '☰', label: 'Audit Log' },
 ];
@@ -28,6 +32,8 @@ export default function App() {
 
   const titles: Record<PageId, [string, string]> = {
     overview: ['Command Center', 'District-wide pulse across all five pillars'],
+    growth: ['Growth & Loyalty', 'Actives, retention cohorts, KAFD Rewards economics and offer performance'],
+    bookings: ['Bookings & Events', 'Rooms, courts, utilization and event programming'],
     dine: ['Dine Operations', 'Reservations, covers, no-shows, waitlist and pacing'],
     rafiq: ['Rafiq Mobility', 'Rides, pooling, safety and the CO₂ program'],
     go: ['Go Delivery', 'Orders, desk delivery SLAs, merchants and couriers'],
@@ -69,6 +75,8 @@ export default function App() {
         </div>
 
         {page === 'overview' ? <OverviewPage range={range} /> : null}
+        {page === 'growth' ? <GrowthPage range={range} /> : null}
+        {page === 'bookings' ? <BookingsPage range={range} /> : null}
         {page === 'dine' ? <DinePage range={range} /> : null}
         {page === 'rafiq' ? <RafiqPage range={range} /> : null}
         {page === 'go' ? <GoPage range={range} /> : null}
