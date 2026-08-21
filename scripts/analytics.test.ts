@@ -1,0 +1,136 @@
+// Unit tests for ops-console analytics (run: npm test / npx tsx scripts/analytics.test.ts)
+import {
+  aiKpis,
+  arrearsAging,
+  auditToCsv,
+  avgBy,
+  co2Leaderboard,
+  co2Program,
+  dineKpis,
+  driversAtRisk,
+  filterAudit,
+  goKpis,
+  lastN,
+  occupancy,
+  openIncidents,
+  overviewKpis,
+  rafiqKpis,
+  rentCollection,
+  sumBy,
+  trendPct,
+  woByStatus,
+  woSlaByPriority,
+} from '../src/data/analytics';
+import { AUDIT_LOG, DAY_KEYS, DINE_PACING, RIDES_DAILY, TODAY_KEY, VENUES, WORK_ORDERS } from '../src/data/seed';
+
+let passed = 0;
+let failed = 0;
+function assert(name: string, condition: boolean) {
+  if (condition) passed += 1;
+  else {
+    failed += 1;
+    console.error(`FAIL: ${name}`);
+  }
+}
+
+// --- seed determinism & shape ---
+assert('90 day keys, today last', DAY_KEYS.length === 90 && DAY_KEYS[89] === TODAY_KEY && TODAY_KEY === '2026-08-21');
+assert('rides daily aligned to keys', RIDES_DAILY.length === 90 && RIDES_DAILY[0].day === DAY_KEYS[0]);
+assert('ride class split sums to total', RIDES_DAILY.every((d) => Object.values(d.byClass).reduce((a, b) => a + b, 0) === d.total));
+assert('pool matched never exceeds pool rides', RIDES_DAILY.every((d) => d.poolMatched <= d.byClass.pool));
+assert('pacing covers every venue/hour', DINE_PACING.length === VENUES.length * 9);
+assert('audit log sorted desc', AUDIT_LOG.every((e, i) => i === 0 || `${AUDIT_LOG[i - 1].day}${AUDIT_LOG[i - 1].time}` >= `${e.day}${e.time}`));
+
+// --- generic helpers ---
+assert('lastN slices tail', lastN([1, 2, 3, 4, 5], 7).length === 5 && lastN(RIDES_DAILY, 7).length === 7);
+assert('sumBy rounds to 2dp', sumBy([{ v: 1.111 }, { v: 2.222 }], (x) => x.v) === 3.33);
+assert('avgBy of empty is 0', avgBy([], () => 1) === 0);
+{
+  const flat = Array.from({ length: 20 }, () => ({ v: 10 }));
+  assert('trendPct flat series is 0', trendPct(flat, 7, (x) => x.v) === 0);
+  const rising = [...Array.from({ length: 7 }, () => ({ v: 10 })), ...Array.from({ length: 7 }, () => ({ v: 20 }))];
+  assert('trendPct doubling is +100%', trendPct(rising, 7, (x) => x.v) === 100);
+}
+
+// --- pillar KPIs sanity ---
+{
+  const k = rafiqKpis(30);
+  assert('rafiq rides positive', k.rides > 500);
+  assert('pool match rate in PRD band', k.poolMatchRate > 45 && k.poolMatchRate < 85);
+  assert('eta p95 >= p50', k.etaP95 > k.etaP50);
+  assert('cancellation rate sane', k.cancellationRate > 0 && k.cancellationRate < 10);
+}
+{
+  const k = dineKpis(30);
+  assert('dine covers > reservations', k.covers > k.reservations);
+  assert('no-show under 12%', k.noShowRate < 12);
+  assert('waitlist claim rate 40-90%', k.waitlistClaimRate >= 40 && k.waitlistClaimRate <= 90);
+}
+{
+  const k = goKpis(30);
+  assert('go p90 above median', k.p90Delivery > k.medianDelivery);
+  assert('desk share is a percentage', k.deskShare > 10 && k.deskShare < 90);
+  assert('issue rate under PRD 4%… ok <6', k.issueRate < 6);
+}
+{
+  const k = aiKpis(30);
+  assert('ai tool accuracy 90-100', k.toolAccuracy >= 90 && k.toolAccuracy <= 100);
+  assert('cost per transaction < SAR 0.4 target ballpark', k.costPerTransaction > 0 && k.costPerTransaction < 1);
+}
+
+// --- CO2 program ---
+{
+  const program = co2Program(30);
+  assert('co2 cumulative is monotonic', program.cumulative.every((p, i) => i === 0 || p.cumulativeKg >= program.cumulative[i - 1].cumulativeKg));
+  assert('co2 total equals last cumulative', program.totalKg === program.cumulative[program.cumulative.length - 1].cumulativeKg);
+  assert('car km equivalence inverse of factor', Math.abs(program.carKmEquivalent - Math.round(program.totalKg / 0.12)) < 1);
+  const wide = co2Program(90);
+  assert('90d co2 >= 30d co2', wide.totalKg >= program.totalKg);
+  const board = co2Leaderboard();
+  assert('leaderboard sorted desc', board.every((r, i) => i === 0 || board[i - 1].kg >= r.kg));
+}
+
+// --- drivers / incidents ---
+assert('at-risk drivers include suspended', driversAtRisk().some((d) => d.status === 'suspended'));
+assert('open incidents subset', openIncidents().every((i) => i.status !== 'resolved') && openIncidents().length >= 2);
+
+// --- living ---
+{
+  const occ = occupancy();
+  assert('occupancy units 157', occ.units === 157);
+  assert('occupancy rate matches leased/units', Math.abs(occ.ratePct - Math.round((occ.leased / occ.units) * 1000) / 10) < 0.01);
+  const sla = woSlaByPriority();
+  assert('sla rows for 3 priorities', sla.length === 3 && sla.every((row) => row.withinSla <= row.total));
+  const statuses = woByStatus();
+  assert('work order statuses sum to total', Object.values(statuses).reduce((a, b) => a + b, 0) === WORK_ORDERS.length);
+  const aging = arrearsAging();
+  assert('aging buckets count all overdue', aging.reduce((a, b) => a + b.count, 0) >= 1);
+  const rent = rentCollection();
+  assert('rent collected pct consistent', rent.collectedPct > 50 && rent.paid < rent.total);
+}
+
+// --- audit ---
+{
+  const dineOnly = filterAudit(AUDIT_LOG, { pillar: 'dine' });
+  assert('audit pillar filter', dineOnly.length > 0 && dineOnly.every((e) => e.pillar === 'dine'));
+  const merchant = filterAudit(AUDIT_LOG, { role: 'merchant' });
+  assert('audit role filter', merchant.every((e) => e.role === 'merchant'));
+  const search = filterAudit(AUDIT_LOG, { query: 'surge' });
+  assert('audit text search', search.length > 0 && search.every((e) => e.action.includes('surge')));
+  const combined = filterAudit(AUDIT_LOG, { pillar: 'rafiq', query: 'surge' });
+  assert('audit combined filters', combined.every((e) => e.pillar === 'rafiq' && e.action.includes('surge')));
+  const csv = auditToCsv(AUDIT_LOG.slice(0, 3));
+  assert('csv header + 3 rows', csv.split('\n').length === 4 && csv.startsWith('id,day,time,actor'));
+}
+
+// --- overview roll-up ---
+{
+  const o = overviewKpis(30);
+  assert('overview gmv = rafiq+go', Math.abs(o.gmv - (rafiqKpis(30).gmv + goKpis(30).gmv)) < 0.02);
+  assert('overview mirrors pillar counts', o.rides === rafiqKpis(30).rides && o.orders === goKpis(30).orders && o.covers === dineKpis(30).covers);
+  assert('overview open incidents', o.openIncidents === openIncidents().length);
+}
+
+console.log(`\n${passed} passed, ${failed} failed`);
+declare const process: { exit(code: number): never };
+if (failed > 0) process.exit(1);
