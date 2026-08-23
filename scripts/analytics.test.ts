@@ -15,8 +15,10 @@ import {
   openIncidents,
   overviewKpis,
   rafiqKpis,
+  complianceKpis,
   nafathVerifiedShare,
   rafiqEconomics,
+  venueStatusNow,
   rentCollection,
   scheduledKpis,
   sumBy,
@@ -30,8 +32,10 @@ import {
   AUDIT_LOG,
   CORPORATE_ACCOUNTS,
   DAY_KEYS,
+  EJAR_CONTRACTS,
   RAFIQ_ECON_DAILY,
   RAFIQ_TAKE_RATE,
+  VENUE_HOURS,
   DINE_PACING,
   RIDES_DAILY,
   SCHEDULED_DAILY,
@@ -206,6 +210,28 @@ assert('open incidents subset', openIncidents().every((i) => i.status !== 'resol
   const verified = nafathVerifiedShare(90);
   assert('nafath share within 0–90%', verified > 0 && verified <= 90);
   assert('nafath adoption ramps over the quarter', nafathVerifiedShare(7) > verified);
+}
+
+// --- property compliance & venue hours ---
+{
+  const c = complianceKpis(90);
+  assert('every ejar deposit respects the 5% cap', c.depositCapPct === 100);
+  assert('registration counts are consistent', c.registered + c.renewalsDue + (EJAR_CONTRACTS.length - c.registered - c.renewalsDue) === c.contracts);
+  assert('short-stay occupancy is a sane %', c.stayOccupancyPct > 30 && c.stayOccupancyPct <= 100);
+  assert('short-stay VAT is 15% of revenue', Math.abs(c.stayVat - c.stayRevenue * 0.15) < c.stayRevenue * 0.001);
+  assert('freeze counter surfaces', c.freezeBlocked === 3);
+
+  const benoit = VENUE_HOURS.find((v) => v.id === 'benoit')!;
+  const rowleys = VENUE_HOURS.find((v) => v.id === 'rowleys')!;
+  const cups = VENUE_HOURS.find((v) => v.id === '12-cups')!;
+  const at = (day: number, h: number, m = 0) => { const d = new Date('2026-08-23T00:00:00'); d.setDate(d.getDate() + day); d.setHours(h, m, 0, 0); return d; };
+  // 2026-08-23 is a Sunday → day offsets map directly to weekday indices.
+  assert('benoit closed in the afternoon gap', !venueStatusNow(benoit, at(1, 17)).open);
+  assert('benoit open at dinner', venueStatusNow(benoit, at(1, 20)).open);
+  assert('benoit label shows split service', venueStatusNow(benoit, at(1, 12)).label === '12:00–16:00 · 19:00–23:00');
+  assert("rowleys 01:30 Thu belongs to Wednesday's service", venueStatusNow(rowleys, at(4, 1, 30)).open);
+  assert('12 cups open at 03:00 Tuesday', venueStatusNow(cups, at(2, 3)).open);
+  assert('12 cups shut 23:45 Saturday', !venueStatusNow(cups, at(6, 23, 45)).open);
 }
 
 console.log(`\n${passed} passed, ${failed} failed`);

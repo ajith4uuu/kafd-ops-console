@@ -581,6 +581,92 @@ export const CORPORATE_ACCOUNTS: readonly CorporateAccount[] = CORPORATE_SEEDS.m
   };
 });
 
+// ------------------------------------- property compliance & short stays
+
+// Isolated PRNG: this section never shifts the existing dataset.
+const rand5 = mulberry32(20261122);
+const R5 = {
+  next: () => rand5(),
+  int: (min: number, max: number) => min + Math.floor(rand5() * (max - min + 1)),
+  pick: <T,>(items: readonly T[]): T => items[Math.floor(rand5() * items.length)],
+  round2: (v: number) => Math.round(v * 100) / 100,
+};
+
+export interface EjarContract {
+  id: string;
+  building: string;
+  unit: string;
+  annualRent: number;
+  /** Deposit held — the legal cap is 5% of the lease value. */
+  depositSar: number;
+  status: 'registered' | 'pending' | 'renewal_due';
+  registeredDay: string;
+}
+
+export const EJAR_CONTRACTS: readonly EjarContract[] = Array.from({ length: 26 }, (_, i) => {
+  const building = R5.pick(BUILDINGS).code;
+  const annualRent = R5.int(96, 380) * 1000;
+  return {
+    id: `EJR-${5200 + i * 7}-${100000 + i * 991}`,
+    building,
+    unit: `${building}-${R5.int(3, 22)}${String(R5.int(1, 8)).padStart(2, '0')}`,
+    annualRent,
+    depositSar: Math.round(annualRent * (0.038 + R5.next() * 0.012)), // always ≤ 5%
+    status: i < 20 ? 'registered' : i < 24 ? 'renewal_due' : 'pending',
+    registeredDay: R5.pick(DAY_KEYS.slice(-75)),
+  };
+});
+
+/** Renewal requests refused because they exceeded the Riyadh rent freeze. */
+export const FREEZE_BLOCKED_RENEWALS = 3;
+
+export interface DailyShortStay {
+  day: string;
+  /** Licensed nightly units in the programme. */
+  units: number;
+  occupied: number;
+  /** Average daily rate, SAR. */
+  adr: number;
+  revenue: number;
+  vat: number;
+}
+
+export const SHORT_STAY_DAILY: readonly DailyShortStay[] = DAY_KEYS.map((day, i) => {
+  const units = 12;
+  const wd = weekday(day);
+  const weekendNight = wd === 4 || wd === 5;
+  const ramp = 0.45 + (i / DAYS) * 0.3;
+  const occupied = Math.min(units, Math.round(units * (ramp + (weekendNight ? 0.22 : 0)) + R5.int(-1, 1)));
+  const adr = R5.round2((weekendNight ? 980 : 760) + R5.next() * 120);
+  const revenue = R5.round2(occupied * adr);
+  return { day, units, occupied, adr, revenue, vat: R5.round2(revenue * 0.15) };
+});
+
+// -------------------------------------------- venue trading hours (real)
+
+export interface VenueHoursRow {
+  id: string;
+  name: string;
+  /** Windows per weekday index (0=Sun); close ≤ open spills past midnight. */
+  windows: readonly { days: readonly number[]; open: string; close: string }[];
+  bookable: boolean;
+}
+
+const EVERY_DAY = [0, 1, 2, 3, 4, 5, 6] as const;
+
+export const VENUE_HOURS: readonly VenueHoursRow[] = [
+  { id: 'benoit', name: 'Benoit', bookable: true, windows: [{ days: EVERY_DAY, open: '12:00', close: '16:00' }, { days: EVERY_DAY, open: '19:00', close: '23:00' }] },
+  { id: 'il-baretto', name: 'Il Baretto', bookable: true, windows: [{ days: [2, 3, 4, 5, 6, 0], open: '12:30', close: '24:00' }, { days: [1], open: '12:00', close: '24:00' }] },
+  { id: 'zuma', name: 'Zuma', bookable: true, windows: [{ days: [0, 1, 2, 3], open: '12:00', close: '24:00' }, { days: [4, 5, 6], open: '12:00', close: '01:00' }] },
+  { id: 'chotto-matte', name: 'Chotto Matte', bookable: true, windows: [{ days: EVERY_DAY, open: '12:00', close: '01:00' }] },
+  { id: 'rowleys', name: "Rowley's Steak & Frites", bookable: true, windows: [{ days: [0, 1, 6], open: '12:00', close: '24:00' }, { days: [3, 4], open: '12:00', close: '02:00' }, { days: [2, 5], open: '12:00', close: '01:00' }] },
+  { id: '12-cups', name: '12 Cups', bookable: true, windows: [{ days: [0, 1, 2, 3, 4, 5], open: '00:00', close: '24:00' }, { days: [6], open: '00:00', close: '23:30' }] },
+  { id: 'apple-butter', name: 'Apple Butter Café', bookable: true, windows: [{ days: EVERY_DAY, open: '08:00', close: '22:30' }] },
+  { id: 'atlas-cafe', name: 'Atlas Cafe', bookable: true, windows: [{ days: EVERY_DAY, open: '07:30', close: '23:30' }] },
+  { id: 'kanto', name: 'Kanto', bookable: true, windows: [{ days: EVERY_DAY, open: '12:00', close: '24:00' }] },
+  { id: 'pistrina', name: 'Pistrina Bakery', bookable: true, windows: [{ days: EVERY_DAY, open: '06:30', close: '23:00' }] },
+];
+
 // --------------------------------------------------------- live feed (today)
 
 export interface LiveEvent {

@@ -1,77 +1,145 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { RangePicker } from './components/ui';
 import { openIncidents, type Range } from './data/analytics';
 import { AiPage } from './pages/AiPage';
 import { AuditPage } from './pages/AuditPage';
 import { BookingsPage } from './pages/BookingsPage';
+import { CompliancePage } from './pages/CompliancePage';
 import { GrowthPage } from './pages/GrowthPage';
 import { DinePage } from './pages/DinePage';
 import { GoPage } from './pages/GoPage';
 import { LivingPage } from './pages/LivingPage';
 import { OverviewPage } from './pages/OverviewPage';
 import { RafiqPage } from './pages/RafiqPage';
+import { VenuesPage } from './pages/VenuesPage';
 
-type PageId = 'overview' | 'growth' | 'dine' | 'rafiq' | 'go' | 'living' | 'bookings' | 'ai' | 'audit';
+type PageId =
+  | 'overview' | 'growth' | 'dine' | 'rafiq' | 'go' | 'living'
+  | 'bookings' | 'ai' | 'audit' | 'compliance' | 'venues';
 
-const PAGES: { id: PageId; icon: string; label: string }[] = [
-  { id: 'overview', icon: '◉', label: 'Command Center' },
-  { id: 'growth', icon: '📈', label: 'Growth & Loyalty' },
-  { id: 'dine', icon: '🍽', label: 'Dine' },
-  { id: 'rafiq', icon: '🚗', label: 'Rafiq' },
-  { id: 'go', icon: '🛵', label: 'Go Delivery' },
-  { id: 'living', icon: '🏢', label: 'Living+' },
-  { id: 'bookings', icon: '🗓', label: 'Bookings & Events' },
-  { id: 'ai', icon: '✦', label: 'Concierge AI' },
-  { id: 'audit', icon: '☰', label: 'Audit Log' },
-];
+type WorkspaceId = 'rafiq-ops' | 'property' | 'hospitality';
+
+/**
+ * One unified platform, three team consoles: mobility, property, and
+ * tables-and-delivery each get their own scoped workspace, sharing the
+ * Command Center pulse and the audit trail.
+ */
+const WORKSPACES: Record<WorkspaceId, { label: string; sub: string; home: PageId; pages: PageId[] }> = {
+  'rafiq-ops': {
+    label: 'Rafiq Mobility',
+    sub: 'Mobility Ops Team',
+    home: 'rafiq',
+    pages: ['rafiq', 'growth', 'overview', 'audit'],
+  },
+  property: {
+    label: 'Property',
+    sub: 'Property Management Team',
+    home: 'living',
+    pages: ['living', 'compliance', 'bookings', 'overview', 'audit'],
+  },
+  hospitality: {
+    label: 'Tables & Delivery',
+    sub: 'Hospitality Ops Team',
+    home: 'dine',
+    pages: ['dine', 'venues', 'go', 'bookings', 'ai', 'overview', 'audit'],
+  },
+};
+
+const PAGE_META: Record<PageId, { icon: string; label: string }> = {
+  overview: { icon: '◉', label: 'Command Center' },
+  growth: { icon: '📈', label: 'Growth & Loyalty' },
+  dine: { icon: '🍽', label: 'Dine' },
+  rafiq: { icon: '🚗', label: 'Rafiq' },
+  go: { icon: '🛵', label: 'Go Delivery' },
+  living: { icon: '🏢', label: 'Living+' },
+  bookings: { icon: '🗓', label: 'Bookings & Events' },
+  ai: { icon: '✦', label: 'Concierge AI' },
+  audit: { icon: '☰', label: 'Audit Log' },
+  compliance: { icon: '⚖', label: 'Compliance & Ejar' },
+  venues: { icon: '🕐', label: 'Venues & Hours' },
+};
+
+const TITLES: Record<PageId, [string, string]> = {
+  overview: ['Command Center', 'District-wide pulse across all five pillars'],
+  growth: ['Growth & Loyalty', 'Actives, retention cohorts, KAFD Rewards economics and offer performance'],
+  bookings: ['Bookings & Events', 'Rooms, courts, utilization and event programming'],
+  dine: ['Dine Operations', 'Reservations, covers, no-shows, waitlist and pacing'],
+  rafiq: ['Rafiq Mobility', 'Rides, pooling, safety, unit economics and the CO₂ program'],
+  go: ['Go Delivery', 'Orders, desk delivery SLAs, merchants and couriers'],
+  living: ['Living+ Property', 'Occupancy, rent collection, work orders and leasing'],
+  ai: ['Concierge AI', 'Sessions, tool accuracy, language parity and unit economics'],
+  audit: ['Audit Log', 'Every privileged action across console, portal, API and automations'],
+  compliance: ['Compliance & Ejar', 'Ejar registrations, deposit caps, the rent freeze, ZATCA e-invoices and licensed short stays'],
+  venues: ['Venues & Hours', 'Real published trading hours — split services, late closes and 24-hour days'],
+};
+
+function initialWorkspace(): WorkspaceId {
+  const fromHash = location.hash.match(/ws=([a-z-]+)/)?.[1];
+  const stored = localStorage.getItem('kafd-ws');
+  const candidate = (fromHash ?? stored) as WorkspaceId | null;
+  return candidate && candidate in WORKSPACES ? candidate : 'rafiq-ops';
+}
 
 export default function App() {
-  const [page, setPage] = useState<PageId>('overview');
+  const [workspace, setWorkspace] = useState<WorkspaceId>(initialWorkspace);
+  const [page, setPage] = useState<PageId>(() => WORKSPACES[initialWorkspace()].home);
   const [range, setRange] = useState<Range>(30);
   const alerts = openIncidents().length;
+  const ws = WORKSPACES[workspace];
 
-  const titles: Record<PageId, [string, string]> = {
-    overview: ['Command Center', 'District-wide pulse across all five pillars'],
-    growth: ['Growth & Loyalty', 'Actives, retention cohorts, KAFD Rewards economics and offer performance'],
-    bookings: ['Bookings & Events', 'Rooms, courts, utilization and event programming'],
-    dine: ['Dine Operations', 'Reservations, covers, no-shows, waitlist and pacing'],
-    rafiq: ['Rafiq Mobility', 'Rides, pooling, safety and the CO₂ program'],
-    go: ['Go Delivery', 'Orders, desk delivery SLAs, merchants and couriers'],
-    living: ['Living+ Property', 'Occupancy, rent collection, work orders and leasing'],
-    ai: ['Concierge AI', 'Sessions, tool accuracy, language parity and unit economics'],
-    audit: ['Audit Log', 'Every privileged action across console, portal, API and automations'],
+  useEffect(() => {
+    localStorage.setItem('kafd-ws', workspace);
+    location.hash = `ws=${workspace}`;
+  }, [workspace]);
+
+  const switchWorkspace = (next: WorkspaceId) => {
+    setWorkspace(next);
+    setPage(WORKSPACES[next].home);
   };
 
   return (
     <>
       <nav className="sidebar">
         <h1 className="brand">KΛFD</h1>
-        <p className="brand-sub">Ops Console</p>
-        {PAGES.map((item) => (
+        <p className="brand-sub">{ws.sub}</p>
+        <div className="ws-switch" role="tablist" aria-label="Console workspace">
+          {(Object.keys(WORKSPACES) as WorkspaceId[]).map((id) => (
+            <button
+              key={id}
+              role="tab"
+              aria-selected={workspace === id}
+              className={workspace === id ? 'active' : ''}
+              onClick={() => switchWorkspace(id)}
+            >
+              {WORKSPACES[id].label}
+            </button>
+          ))}
+        </div>
+        {ws.pages.map((id) => (
           <button
-            key={item.id}
-            className={`nav-item ${page === item.id ? 'active' : ''}`}
-            onClick={() => setPage(item.id)}
-            aria-current={page === item.id}
+            key={id}
+            className={`nav-item ${page === id ? 'active' : ''}`}
+            onClick={() => setPage(id)}
+            aria-current={page === id}
           >
-            <span aria-hidden>{item.icon}</span>
-            {item.label}
-            {item.id === 'overview' && alerts > 0 ? <span className="dot">{alerts}</span> : null}
+            <span aria-hidden>{PAGE_META[id].icon}</span>
+            {PAGE_META[id].label}
+            {id === 'overview' && alerts > 0 ? <span className="dot">{alerts}</span> : null}
           </button>
         ))}
         <div className="sidebar-footer">
-          Seeded demo data · 90 days
+          One platform · three team consoles
           <br />
-          services/* + ClickHouse in prod
+          Seeded demo data · 90 days
         </div>
       </nav>
 
       <main className="main">
         <div className="page-head">
-          <h2 className="page-title">{titles[page][0]}</h2>
+          <h2 className="page-title">{TITLES[page][0]}</h2>
           <div className="spacer" />
-          {page !== 'audit' ? <RangePicker value={range} onChange={setRange} /> : null}
-          <p className="page-sub">{titles[page][1]}</p>
+          {page !== 'audit' && page !== 'venues' ? <RangePicker value={range} onChange={setRange} /> : null}
+          <p className="page-sub">{TITLES[page][1]}</p>
         </div>
 
         {page === 'overview' ? <OverviewPage range={range} /> : null}
@@ -83,6 +151,8 @@ export default function App() {
         {page === 'living' ? <LivingPage /> : null}
         {page === 'ai' ? <AiPage range={range} /> : null}
         {page === 'audit' ? <AuditPage /> : null}
+        {page === 'compliance' ? <CompliancePage range={range} /> : null}
+        {page === 'venues' ? <VenuesPage /> : null}
       </main>
     </>
   );

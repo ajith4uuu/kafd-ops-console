@@ -53,6 +53,31 @@ body {
   letter-spacing: 2.5px;
   text-transform: uppercase;
 }
+.ws-switch {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: rgba(10, 17, 32, 0.5);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 5px;
+  margin: 0 2px 14px;
+}
+.ws-switch button {
+  border: 0;
+  background: transparent;
+  color: var(--text-2);
+  font: inherit;
+  font-size: 13px;
+  letter-spacing: 0.02em;
+  padding: 7px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  text-align: left;
+}
+.ws-switch button:hover { color: var(--amber); }
+.ws-switch button.active { background: var(--amber); color: var(--ink); font-weight: 700; }
+
 .nav-item {
   display: flex;
   align-items: center;

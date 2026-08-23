@@ -7,8 +7,12 @@ import {
   BUILDINGS,
   CORPORATE_ACCOUNTS,
   DAYS,
+  EJAR_CONTRACTS,
+  FREEZE_BLOCKED_RENEWALS,
   RAFIQ_ECON_DAILY,
   RAFIQ_TAKE_RATE,
+  SHORT_STAY_DAILY,
+  type VenueHoursRow,
   DINE_DAILY,
   DRIVERS,
   INCIDENTS,
@@ -161,6 +165,48 @@ export function rafiqEconomics(n: Range) {
 /** Share of riders with a Nafath-verified identity (identity ops signal). */
 export function nafathVerifiedShare(n: Range): number {
   return Math.round(avgBy(lastN(RAFIQ_ECON_DAILY, n), (d) => d.nafathVerifiedShare) * 1000) / 10;
+}
+
+/** Property compliance: Ejar registrations, deposit caps, ZATCA, short stays. */
+export function complianceKpis(n: Range) {
+  const registered = EJAR_CONTRACTS.filter((c) => c.status === 'registered').length;
+  const capOk = EJAR_CONTRACTS.filter((c) => c.depositSar <= c.annualRent * 0.05).length;
+  const paidInvoices = RENT_INVOICES.filter((inv) => inv.status === 'paid').length;
+  const window = lastN(SHORT_STAY_DAILY, n);
+  return {
+    contracts: EJAR_CONTRACTS.length,
+    registered,
+    registeredPct: Math.round((registered / EJAR_CONTRACTS.length) * 1000) / 10,
+    renewalsDue: EJAR_CONTRACTS.filter((c) => c.status === 'renewal_due').length,
+    depositCapPct: Math.round((capOk / EJAR_CONTRACTS.length) * 1000) / 10,
+    zatcaInvoices: paidInvoices,
+    freezeBlocked: FREEZE_BLOCKED_RENEWALS,
+    stayOccupancyPct: Math.round(avgBy(window, (d) => d.occupied / d.units) * 1000) / 10,
+    stayAdr: avgBy(window, (d) => d.adr),
+    stayRevenue: sumBy(window, (d) => d.revenue),
+    stayVat: sumBy(window, (d) => d.vat),
+  };
+}
+
+/** 'Open now' + today's label for a venue row, from the real clock. */
+export function venueStatusNow(row: VenueHoursRow, now: Date = new Date()): { open: boolean; label: string } {
+  const day = now.getDay();
+  const minutes = now.getHours() * 60 + now.getMinutes();
+  const toMin = (t: string) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3));
+  const today = row.windows.filter((w) => w.days.includes(day));
+  const spills = (w: { open: string; close: string }) => w.close !== '24:00' && toMin(w.close) <= toMin(w.open);
+  let open = today.some((w) => {
+    const o = toMin(w.open), c = w.close === '24:00' ? 1440 : toMin(w.close);
+    return spills(w) ? minutes >= o : minutes >= o && minutes < c;
+  });
+  const prev = row.windows.filter((w) => w.days.includes((day + 6) % 7));
+  open = open || prev.some((w) => spills(w) && minutes < toMin(w.close));
+  const label = today.length === 0
+    ? 'Closed today'
+    : today.some((w) => w.open === '00:00' && w.close === '24:00')
+      ? 'Open 24 hours'
+      : today.map((w) => `${w.open}–${w.close === '24:00' ? '00:00' : w.close}`).join(' · ');
+  return { open, label };
 }
 
 // -------------------------------------------------------------------- dine
