@@ -7,6 +7,7 @@ import {
   BUILDINGS,
   CORPORATE_ACCOUNTS,
   DAYS,
+  DAY_KEYS,
   EJAR_CONTRACTS,
   FREEZE_BLOCKED_RENEWALS,
   RAFIQ_ECON_DAILY,
@@ -31,6 +32,13 @@ import {
   EMPLOYEES,
   WPS_RUNS,
   RECRUITMENT,
+  ADMINS,
+  ROLE_CATALOG,
+  SOD_FORBIDDEN,
+  ACCESS_REQUESTS,
+  ACCESS_REVIEW,
+  FINANCE_QUEUE,
+  APPROVAL_LIMITS,
 } from './seed';
 
 export type Range = 7 | 30 | 90;
@@ -408,5 +416,53 @@ export function hrKpis() {
     wpsStatus: latest.status,
     openRoles: RECRUITMENT.length,
     hiredQtd: RECRUITMENT.reduce((s, r) => s + r.hired, 0),
+  };
+}
+
+/** SoD violations: active admins whose role holds a forbidden permission pair. */
+export function sodViolations(): { admin: string; pair: [string, string] }[] {
+  const out: { admin: string; pair: [string, string] }[] = [];
+  for (const a of ADMINS) {
+    if (a.status !== 'active' || a.role === 'super_admin') continue;
+    const perms = ROLE_CATALOG.find((r) => r.id === a.role)?.permissions ?? [];
+    for (const [x, y] of SOD_FORBIDDEN) {
+      if (perms.includes(x) && perms.includes(y)) out.push({ admin: a.name, pair: [x, y] });
+    }
+  }
+  return out;
+}
+
+/** Control-panel governance rollup. */
+export function controlKpis() {
+  const active = ADMINS.filter((a) => a.status === 'active');
+  const mfaOk = active.filter((a) => a.mfa).length;
+  const staleCutoff = DAY_KEYS[DAYS - 31];
+  const reviewed = ACCESS_REVIEW.reduce((s, r) => s + r.reviewed, 0);
+  const reviewTotal = ACCESS_REVIEW.reduce((s, r) => s + r.total, 0);
+  return {
+    admins: ADMINS.length,
+    superAdmins: ADMINS.filter((a) => a.role === 'super_admin').length,
+    superAdminCap: ROLE_CATALOG.find((r) => r.id === 'super_admin')?.maxHolders ?? 0,
+    mfaPct: Math.round((mfaOk / active.length) * 1000) / 10,
+    nafathPending: ADMINS.filter((a) => !a.nafathVerified).length,
+    stale: active.filter((a) => a.lastActiveDay < staleCutoff).length,
+    pendingRequests: ACCESS_REQUESTS.length,
+    sodViolations: sodViolations().length,
+    reviewPct: Math.round((reviewed / reviewTotal) * 1000) / 10,
+    reviewRevoked: ACCESS_REVIEW.reduce((s, r) => s + r.revoked, 0),
+  };
+}
+
+/** Finance dual-control rollup. */
+export function financeControlKpis() {
+  const pending = FINANCE_QUEUE.filter((f) => f.status === 'pending');
+  const decided = FINANCE_QUEUE.filter((f) => f.status !== 'pending');
+  const checkerLimit = APPROVAL_LIMITS.find((l) => l.role === 'finance_checker')?.limitSar ?? 0;
+  return {
+    pendingCount: pending.length,
+    pendingValue: pending.reduce((s, f) => s + f.amountSar, 0),
+    oldestHours: pending.length === 0 ? 0 : Math.max(...pending.map((f) => f.ageHours)),
+    dualControlPct: decided.length === 0 ? 100 : Math.round((decided.filter((f) => f.checker != null && f.checker !== f.maker).length / decided.length) * 1000) / 10,
+    overLimit: pending.filter((f) => f.amountSar > checkerLimit).length,
   };
 }

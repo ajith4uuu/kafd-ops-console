@@ -11,15 +11,18 @@ import { GoPage } from './pages/GoPage';
 import { LivingPage } from './pages/LivingPage';
 import { EstatePage } from './pages/EstatePage';
 import { HrPage } from './pages/HrPage';
+import { AdminsPage } from './pages/AdminsPage';
+import { LifecyclePage } from './pages/LifecyclePage';
+import { FinanceOpsPage } from './pages/FinanceOpsPage';
 import { OverviewPage } from './pages/OverviewPage';
 import { RafiqPage } from './pages/RafiqPage';
 import { VenuesPage } from './pages/VenuesPage';
 
 type PageId =
   | 'overview' | 'growth' | 'dine' | 'rafiq' | 'go' | 'living'
-  | 'bookings' | 'ai' | 'audit' | 'compliance' | 'venues' | 'estate' | 'hr';
+  | 'bookings' | 'ai' | 'audit' | 'compliance' | 'venues' | 'estate' | 'hr' | 'admins' | 'lifecycle' | 'financeops';
 
-type WorkspaceId = 'rafiq-ops' | 'property' | 'hospitality' | 'estate-admin';
+type WorkspaceId = 'rafiq-ops' | 'property' | 'hospitality' | 'estate-admin' | 'control';
 
 /**
  * One unified platform, three team consoles: mobility, property, and
@@ -38,6 +41,12 @@ const WORKSPACES: Record<WorkspaceId, { label: string; sub: string; home: PageId
     sub: 'Property Management Team',
     home: 'living',
     pages: ['living', 'compliance', 'bookings', 'overview', 'audit'],
+  },
+  control: {
+    label: 'Control Panel',
+    sub: 'Platform Governance',
+    home: 'admins',
+    pages: ['admins', 'lifecycle', 'financeops', 'audit'],
   },
   'estate-admin': {
     label: 'Estate Admin',
@@ -67,6 +76,9 @@ const PAGE_META: Record<PageId, { icon: string; label: string }> = {
   venues: { icon: '🕐', label: 'Venues & Hours' },
   estate: { icon: '🏛', label: 'Estate Ops' },
   hr: { icon: '👥', label: 'HR & Payroll' },
+  admins: { icon: '🛡', label: 'Admins & Roles' },
+  lifecycle: { icon: '🔄', label: 'Access Lifecycle' },
+  financeops: { icon: '🏦', label: 'Finance Controls' },
 };
 
 const TITLES: Record<PageId, [string, string]> = {
@@ -83,6 +95,9 @@ const TITLES: Record<PageId, [string, string]> = {
   venues: ['Venues & Hours', 'Real published trading hours — split services, late closes and 24-hour days'],
   estate: ['Estate Ops', 'URWA-core operations: services volume, SLA credits, gate security and partner settlement'],
   hr: ['HR & Payroll', 'Attendance, WPS payroll runs and the recruitment pipeline across the estate teams'],
+  admins: ['Admins & Roles', 'Division admins, the role catalog with least-privilege permissions, and segregation of duties'],
+  lifecycle: ['Access Lifecycle', 'Joiner / mover / leaver requests, offboarding checklists and the quarterly access review'],
+  financeops: ['Finance Controls', 'Dual-control approval queue, maker-checker enforcement and single-sign limits'],
 };
 
 function initialWorkspace(): WorkspaceId {
@@ -150,7 +165,7 @@ export default function App() {
         <div className="page-head">
           <h2 className="page-title">{TITLES[page][0]}</h2>
           <div className="spacer" />
-          {page !== 'audit' && page !== 'venues' && page !== 'hr' ? <RangePicker value={range} onChange={setRange} /> : null}
+          {page !== 'audit' && page !== 'venues' && page !== 'hr' && page !== 'admins' && page !== 'lifecycle' && page !== 'financeops' ? <RangePicker value={range} onChange={setRange} /> : null}
           <p className="page-sub">{TITLES[page][1]}</p>
         </div>
 
@@ -167,6 +182,9 @@ export default function App() {
         {page === 'venues' ? <VenuesPage /> : null}
         {page === 'estate' ? <EstatePage range={range} /> : null}
         {page === 'hr' ? <HrPage /> : null}
+        {page === 'admins' ? <AdminsPage /> : null}
+        {page === 'lifecycle' ? <LifecyclePage /> : null}
+        {page === 'financeops' ? <FinanceOpsPage /> : null}
       </main>
     </>
   );

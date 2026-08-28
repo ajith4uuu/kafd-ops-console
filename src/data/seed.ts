@@ -834,3 +834,229 @@ export const RECRUITMENT: readonly RecruitmentRole[] = [
   { role: 'Housekeeping Lead', dept: 'Housekeeping', applied: 63, screening: 24, interview: 9, offer: 3, hired: 2 },
   { role: 'Night Concierge', dept: 'Concierge', applied: 51, screening: 19, interview: 7, offer: 2, hired: 1 },
 ];
+
+// --------------------------------------------------------- control panel (IAM)
+// Platform governance: division admins, role catalog with least-privilege
+// permissions, joiner/mover/leaver lifecycle, access reviews, and dual-control
+// finance approvals. Isolated PRNG so nothing above shifts.
+
+const rand7 = mulberry32(20270115);
+const R7 = {
+  next: () => rand7(),
+  int: (min: number, max: number) => min + Math.floor(rand7() * (max - min + 1)),
+  pick: <T,>(items: readonly T[]): T => items[Math.floor(rand7() * items.length)],
+};
+
+export type Division =
+  | 'platform' | 'mobility' | 'property' | 'hospitality' | 'estate' | 'finance' | 'people' | 'security';
+
+export type AdminRoleId =
+  | 'super_admin' | 'division_admin' | 'ops_analyst' | 'finance_maker' | 'finance_checker'
+  | 'hr_admin' | 'security_officer' | 'support_agent' | 'auditor';
+
+export type PermissionId =
+  | 'view_dashboards' | 'manage_users' | 'invite_admin' | 'suspend_admin' | 'approve_access'
+  | 'manage_roles' | 'prepare_payout' | 'approve_payout' | 'issue_refund' | 'approve_refund'
+  | 'manage_blacklist' | 'manage_catalog' | 'run_payroll' | 'export_data' | 'view_audit' | 'manage_cms';
+
+export const PERMISSIONS: readonly { id: PermissionId; label: string }[] = [
+  { id: 'view_dashboards', label: 'View dashboards' },
+  { id: 'manage_users', label: 'Manage app users' },
+  { id: 'invite_admin', label: 'Invite admins' },
+  { id: 'suspend_admin', label: 'Suspend admins' },
+  { id: 'approve_access', label: 'Approve access requests' },
+  { id: 'manage_roles', label: 'Edit role catalog' },
+  { id: 'prepare_payout', label: 'Prepare payouts' },
+  { id: 'approve_payout', label: 'Approve payouts' },
+  { id: 'issue_refund', label: 'Issue refunds' },
+  { id: 'approve_refund', label: 'Approve refunds' },
+  { id: 'manage_blacklist', label: 'Manage gate blacklist' },
+  { id: 'manage_catalog', label: 'Manage partner catalogs' },
+  { id: 'run_payroll', label: 'Run WPS payroll' },
+  { id: 'export_data', label: 'Export data (PDPL)' },
+  { id: 'view_audit', label: 'View audit log' },
+  { id: 'manage_cms', label: 'Manage CMS content' },
+];
+
+export interface AdminRole {
+  id: AdminRoleId;
+  label: string;
+  permissions: readonly PermissionId[];
+  /** How many people may hold this role at once (least privilege). */
+  maxHolders?: number;
+}
+
+export const ROLE_CATALOG: readonly AdminRole[] = [
+  { id: 'super_admin', label: 'Super Admin', maxHolders: 3, permissions: PERMISSIONS.map((p) => p.id) },
+  { id: 'division_admin', label: 'Division Admin', permissions: ['view_dashboards', 'manage_users', 'invite_admin', 'manage_catalog', 'export_data', 'view_audit', 'manage_cms'] },
+  { id: 'ops_analyst', label: 'Ops Analyst', permissions: ['view_dashboards', 'export_data'] },
+  { id: 'finance_maker', label: 'Finance Maker', permissions: ['view_dashboards', 'prepare_payout', 'issue_refund'] },
+  { id: 'finance_checker', label: 'Finance Checker', permissions: ['view_dashboards', 'approve_payout', 'approve_refund', 'view_audit'] },
+  { id: 'hr_admin', label: 'HR Admin', permissions: ['view_dashboards', 'run_payroll', 'manage_users', 'export_data'] },
+  { id: 'security_officer', label: 'Security Officer', permissions: ['view_dashboards', 'manage_blacklist', 'view_audit'] },
+  { id: 'support_agent', label: 'Support Agent', permissions: ['view_dashboards', 'manage_users'] },
+  { id: 'auditor', label: 'Auditor', permissions: ['view_dashboards', 'view_audit', 'export_data'] },
+];
+
+/**
+ * Segregation-of-duties: permission pairs no single person may hold.
+ * Super admins are exempt only via break-glass, which is alarmed + audited.
+ */
+export const SOD_FORBIDDEN: readonly [PermissionId, PermissionId][] = [
+  ['prepare_payout', 'approve_payout'],
+  ['issue_refund', 'approve_refund'],
+  ['run_payroll', 'approve_payout'],
+  ['invite_admin', 'approve_access'],
+];
+
+export interface AdminUser {
+  id: string;
+  name: string;
+  division: Division;
+  role: AdminRoleId;
+  mfa: boolean;
+  nafathVerified: boolean;
+  lastActiveDay: string;
+  status: 'active' | 'suspended' | 'invited';
+}
+
+const ADMIN_SEED: readonly [string, Division, AdminRoleId, boolean][] = [
+  ['Layla Al-Rashid', 'platform', 'super_admin', true],
+  ['Abdullah Qahtani', 'platform', 'super_admin', true],
+  ['Mona Al-Harbi', 'mobility', 'division_admin', true],
+  ['Tariq Anazi', 'mobility', 'ops_analyst', true],
+  ['Huda Al-Otaibi', 'property', 'division_admin', true],
+  ['Sultan Ghamdi', 'property', 'ops_analyst', false],
+  ['Rania Al-Saud', 'hospitality', 'division_admin', true],
+  ['Majed Dossari', 'hospitality', 'support_agent', true],
+  ['Nasser Al-Shehri', 'estate', 'division_admin', true],
+  ['Waleed Harthi', 'estate', 'security_officer', true],
+  ['Aisha Zahrani', 'finance', 'finance_checker', true],
+  ['Fahad Al-Mutairi', 'finance', 'finance_maker', true],
+  ['Salma Juhani', 'finance', 'finance_maker', true],
+  ['Omar Bishi', 'people', 'hr_admin', true],
+  ['Nora Al-Amri', 'people', 'hr_admin', false],
+  ['Khalid Subaie', 'security', 'security_officer', true],
+  ['Dana Al-Fadl', 'platform', 'auditor', true],
+  ['Yara Qurashi', 'hospitality', 'ops_analyst', true],
+];
+
+export const ADMINS: readonly AdminUser[] = ADMIN_SEED.map(([name, division, role, mfa], i) => ({
+  id: `adm-${String(i + 1).padStart(3, '0')}`,
+  name,
+  division,
+  role,
+  mfa,
+  nafathVerified: i !== 5, // one pending Nafath verification
+  lastActiveDay: DAY_KEYS[DAYS - 1 - (i === 14 ? 41 : i === 17 ? 33 : R7.int(0, 6))],
+  status: i === 15 ? 'invited' : 'active',
+}));
+
+export interface AccessRequest {
+  id: string;
+  kind: 'joiner' | 'mover' | 'leaver';
+  person: string;
+  division: Division;
+  /** Target role for joiners/movers; current role for leavers. */
+  role: AdminRoleId;
+  requestedBy: string;
+  ageDays: number;
+  note: string;
+}
+
+export const ACCESS_REQUESTS: readonly AccessRequest[] = [
+  { id: 'req-01', kind: 'joiner', person: 'Ghada Al-Nasser', division: 'hospitality', role: 'support_agent', requestedBy: 'Rania Al-Saud', ageDays: 1, note: 'New venue-support hire, starts Sunday' },
+  { id: 'req-02', kind: 'joiner', person: 'Bader Al-Qadi', division: 'finance', role: 'finance_maker', requestedBy: 'Aisha Zahrani', ageDays: 2, note: 'Settlement team expansion' },
+  { id: 'req-03', kind: 'mover', person: 'Tariq Anazi', division: 'mobility', role: 'division_admin', requestedBy: 'Mona Al-Harbi', ageDays: 4, note: 'Promotion — backfill analyst seat first' },
+  { id: 'req-04', kind: 'mover', person: 'Salma Juhani', division: 'finance', role: 'finance_checker', requestedBy: 'Aisha Zahrani', ageDays: 1, note: 'BLOCKED by SoD until maker rights are dropped' },
+  { id: 'req-05', kind: 'leaver', person: 'Nora Al-Amri', division: 'people', role: 'hr_admin', requestedBy: 'Omar Bishi', ageDays: 3, note: 'Contract ended — run offboarding checklist' },
+];
+
+export interface OffboardingStep {
+  step: string;
+  done: boolean;
+}
+
+export interface OffboardingCase {
+  person: string;
+  division: Division;
+  startedDay: string;
+  steps: readonly OffboardingStep[];
+}
+
+export const OFFBOARDING_CASES: readonly OffboardingCase[] = [
+  {
+    person: 'Nora Al-Amri',
+    division: 'people',
+    startedDay: DAY_KEYS[DAYS - 3],
+    steps: [
+      { step: 'Revoke SSO + all sessions', done: true },
+      { step: 'Remove role assignments', done: true },
+      { step: 'Reassign pending approvals', done: true },
+      { step: 'Disable payroll access', done: false },
+      { step: 'Transfer owned exports', done: false },
+      { step: 'Archive mailbox (PDPL 90d)', done: false },
+    ],
+  },
+  {
+    person: 'Ibrahim Talal',
+    division: 'mobility',
+    startedDay: DAY_KEYS[DAYS - 9],
+    steps: [
+      { step: 'Revoke SSO + all sessions', done: true },
+      { step: 'Remove role assignments', done: true },
+      { step: 'Reassign pending approvals', done: true },
+      { step: 'Disable payroll access', done: true },
+      { step: 'Transfer owned exports', done: true },
+      { step: 'Archive mailbox (PDPL 90d)', done: true },
+    ],
+  },
+];
+
+export interface AccessReviewRow {
+  division: Division;
+  total: number;
+  reviewed: number;
+  revoked: number;
+}
+
+/** Q3-2026 quarterly recertification campaign. */
+export const ACCESS_REVIEW: readonly AccessReviewRow[] = [
+  { division: 'platform', total: 4, reviewed: 4, revoked: 0 },
+  { division: 'mobility', total: 3, reviewed: 3, revoked: 1 },
+  { division: 'property', total: 2, reviewed: 2, revoked: 0 },
+  { division: 'hospitality', total: 3, reviewed: 2, revoked: 0 },
+  { division: 'estate', total: 2, reviewed: 1, revoked: 0 },
+  { division: 'finance', total: 3, reviewed: 3, revoked: 0 },
+  { division: 'people', total: 2, reviewed: 1, revoked: 1 },
+  { division: 'security', total: 1, reviewed: 1, revoked: 0 },
+];
+
+export interface FinanceApproval {
+  id: string;
+  type: 'partner_payout' | 'resident_refund' | 'invoice_adjustment';
+  ref: string;
+  division: Division;
+  amountSar: number;
+  maker: string;
+  checker: string | null;
+  status: 'pending' | 'approved' | 'rejected';
+  ageHours: number;
+}
+
+export const FINANCE_QUEUE: readonly FinanceApproval[] = [
+  { id: 'fin-01', type: 'partner_payout', ref: 'PAY-2026-0821', division: 'estate', amountSar: 48230, maker: 'Fahad Al-Mutairi', checker: null, status: 'pending', ageHours: 3 },
+  { id: 'fin-02', type: 'partner_payout', ref: 'PAY-2026-0822', division: 'hospitality', amountSar: 112400, maker: 'Salma Juhani', checker: null, status: 'pending', ageHours: 6 },
+  { id: 'fin-03', type: 'resident_refund', ref: 'RFD-2026-1187', division: 'estate', amountSar: 640, maker: 'Fahad Al-Mutairi', checker: null, status: 'pending', ageHours: 1 },
+  { id: 'fin-04', type: 'invoice_adjustment', ref: 'ADJ-2026-0233', division: 'property', amountSar: 8750, maker: 'Salma Juhani', checker: null, status: 'pending', ageHours: 22 },
+  { id: 'fin-05', type: 'partner_payout', ref: 'PAY-2026-0819', division: 'estate', amountSar: 51000, maker: 'Fahad Al-Mutairi', checker: 'Aisha Zahrani', status: 'approved', ageHours: 28 },
+  { id: 'fin-06', type: 'resident_refund', ref: 'RFD-2026-1181', division: 'mobility', amountSar: 95, maker: 'Salma Juhani', checker: 'Aisha Zahrani', status: 'approved', ageHours: 30 },
+  { id: 'fin-07', type: 'invoice_adjustment', ref: 'ADJ-2026-0229', division: 'hospitality', amountSar: 15600, maker: 'Fahad Al-Mutairi', checker: 'Aisha Zahrani', status: 'rejected', ageHours: 50 },
+];
+
+/** Single-approval ceilings by role; anything above needs a second checker. */
+export const APPROVAL_LIMITS: readonly { role: AdminRoleId; limitSar: number }[] = [
+  { role: 'finance_checker', limitSar: 100000 },
+  { role: 'division_admin', limitSar: 25000 },
+  { role: 'super_admin', limitSar: 250000 },
+];
