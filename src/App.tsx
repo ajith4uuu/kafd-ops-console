@@ -16,13 +16,15 @@ import { LifecyclePage } from './pages/LifecyclePage';
 import { FinanceOpsPage } from './pages/FinanceOpsPage';
 import { PortfolioPage } from './pages/PortfolioPage';
 import { CmsPage } from './pages/CmsPage';
+import { FleetPage } from './pages/FleetPage';
+import { MobilityControlPage } from './pages/MobilityControlPage';
 import { OverviewPage } from './pages/OverviewPage';
 import { RafiqPage } from './pages/RafiqPage';
 import { VenuesPage } from './pages/VenuesPage';
 
 type PageId =
   | 'overview' | 'growth' | 'dine' | 'rafiq' | 'go' | 'living'
-  | 'bookings' | 'ai' | 'audit' | 'compliance' | 'venues' | 'estate' | 'hr' | 'admins' | 'lifecycle' | 'financeops' | 'portfolio' | 'cms';
+  | 'bookings' | 'ai' | 'audit' | 'compliance' | 'venues' | 'estate' | 'hr' | 'admins' | 'lifecycle' | 'financeops' | 'portfolio' | 'cms' | 'fleet' | 'mobility';
 
 type WorkspaceId = 'rafiq-ops' | 'property' | 'hospitality' | 'estate-admin' | 'control';
 
@@ -36,7 +38,7 @@ const WORKSPACES: Record<WorkspaceId, { label: string; sub: string; home: PageId
     label: 'Rafiq Mobility',
     sub: 'Mobility Ops Team',
     home: 'rafiq',
-    pages: ['rafiq', 'growth', 'overview', 'audit'],
+    pages: ['rafiq', 'fleet', 'mobility', 'growth', 'overview', 'audit'],
   },
   property: {
     label: 'Property',
@@ -83,6 +85,8 @@ const PAGE_META: Record<PageId, { icon: string; label: string }> = {
   financeops: { icon: '🏦', label: 'Finance Controls' },
   portfolio: { icon: '🏗', label: 'Portfolio Manager' },
   cms: { icon: '🗂', label: 'Directory & Offers' },
+  fleet: { icon: '🚕', label: 'Fleet & Drivers' },
+  mobility: { icon: '🎚', label: 'Mobility Control' },
 };
 
 const TITLES: Record<PageId, [string, string]> = {
@@ -104,6 +108,8 @@ const TITLES: Record<PageId, [string, string]> = {
   financeops: ['Finance Controls', 'Dual-control approval queue, maker-checker enforcement and single-sign limits'],
   portfolio: ['Portfolio Manager', 'Full property lifecycle: details, compliance-gated listing, route-ordered photos and the AI walkthrough studio'],
   cms: ['Directory & Offers', 'Web directory visibility, featured shelf, promotions with publish-pause-schedule, and the app hero content'],
+  fleet: ['Fleet & Drivers', 'TGA-compliant driver lifecycle, vehicle documents, onboarding pipeline and the renewal chase list'],
+  mobility: ['Mobility Control', 'Tier pricing, surge zones under the platform cap, shuttle routes, ride promos and the incident queue'],
 };
 
 function initialWorkspace(): WorkspaceId {
@@ -171,7 +177,7 @@ export default function App() {
         <div className="page-head">
           <h2 className="page-title">{TITLES[page][0]}</h2>
           <div className="spacer" />
-          {page !== 'audit' && page !== 'venues' && page !== 'hr' && page !== 'admins' && page !== 'lifecycle' && page !== 'financeops' && page !== 'portfolio' && page !== 'cms' ? <RangePicker value={range} onChange={setRange} /> : null}
+          {page !== 'audit' && page !== 'venues' && page !== 'hr' && page !== 'admins' && page !== 'lifecycle' && page !== 'financeops' && page !== 'portfolio' && page !== 'cms' && page !== 'fleet' && page !== 'mobility' ? <RangePicker value={range} onChange={setRange} /> : null}
           <p className="page-sub">{TITLES[page][1]}</p>
         </div>
 
@@ -193,6 +199,8 @@ export default function App() {
         {page === 'financeops' ? <FinanceOpsPage /> : null}
         {page === 'portfolio' ? <PortfolioPage /> : null}
         {page === 'cms' ? <CmsPage /> : null}
+        {page === 'fleet' ? <FleetPage /> : null}
+        {page === 'mobility' ? <MobilityControlPage /> : null}
       </main>
     </>
   );
