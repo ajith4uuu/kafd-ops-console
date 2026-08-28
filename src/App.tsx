@@ -18,13 +18,15 @@ import { PortfolioPage } from './pages/PortfolioPage';
 import { CmsPage } from './pages/CmsPage';
 import { FleetPage } from './pages/FleetPage';
 import { MobilityControlPage } from './pages/MobilityControlPage';
+import { ReservationsPage } from './pages/ReservationsPage';
+import { GuestsPage } from './pages/GuestsPage';
 import { OverviewPage } from './pages/OverviewPage';
 import { RafiqPage } from './pages/RafiqPage';
 import { VenuesPage } from './pages/VenuesPage';
 
 type PageId =
   | 'overview' | 'growth' | 'dine' | 'rafiq' | 'go' | 'living'
-  | 'bookings' | 'ai' | 'audit' | 'compliance' | 'venues' | 'estate' | 'hr' | 'admins' | 'lifecycle' | 'financeops' | 'portfolio' | 'cms' | 'fleet' | 'mobility';
+  | 'bookings' | 'ai' | 'audit' | 'compliance' | 'venues' | 'estate' | 'hr' | 'admins' | 'lifecycle' | 'financeops' | 'portfolio' | 'cms' | 'fleet' | 'mobility' | 'resbook' | 'guestcrm';
 
 type WorkspaceId = 'rafiq-ops' | 'property' | 'hospitality' | 'estate-admin' | 'control';
 
@@ -62,7 +64,7 @@ const WORKSPACES: Record<WorkspaceId, { label: string; sub: string; home: PageId
     label: 'Tables & Delivery',
     sub: 'Hospitality Ops Team',
     home: 'dine',
-    pages: ['dine', 'venues', 'go', 'bookings', 'ai', 'overview', 'audit'],
+    pages: ['dine', 'resbook', 'guestcrm', 'venues', 'go', 'bookings', 'ai', 'overview', 'audit'],
   },
 };
 
@@ -87,6 +89,8 @@ const PAGE_META: Record<PageId, { icon: string; label: string }> = {
   cms: { icon: '🗂', label: 'Directory & Offers' },
   fleet: { icon: '🚕', label: 'Fleet & Drivers' },
   mobility: { icon: '🎚', label: 'Mobility Control' },
+  resbook: { icon: '🪑', label: 'Reservation Book' },
+  guestcrm: { icon: '🤝', label: 'Guests & Revenue' },
 };
 
 const TITLES: Record<PageId, [string, string]> = {
@@ -110,6 +114,8 @@ const TITLES: Record<PageId, [string, string]> = {
   cms: ['Directory & Offers', 'Web directory visibility, featured shelf, promotions with publish-pause-schedule, and the app hero content'],
   fleet: ['Fleet & Drivers', 'TGA-compliant driver lifecycle, vehicle documents, onboarding pipeline and the renewal chase list'],
   mobility: ['Mobility Control', 'Tier pricing, surge zones under the platform cap, shuttle routes, ride promos and the incident queue'],
+  resbook: ['Reservation Book', 'Tonight on the floor: smart table assignment, pacing-capped seatings, waitlist quoting and no-show economics'],
+  guestcrm: ['Guests & Revenue', 'Guest CRM with tiers and allergies, deposit policies, prepaid ticketed experiences and the review-reply desk'],
 };
 
 function initialWorkspace(): WorkspaceId {
@@ -177,7 +183,7 @@ export default function App() {
         <div className="page-head">
           <h2 className="page-title">{TITLES[page][0]}</h2>
           <div className="spacer" />
-          {page !== 'audit' && page !== 'venues' && page !== 'hr' && page !== 'admins' && page !== 'lifecycle' && page !== 'financeops' && page !== 'portfolio' && page !== 'cms' && page !== 'fleet' && page !== 'mobility' ? <RangePicker value={range} onChange={setRange} /> : null}
+          {page !== 'audit' && page !== 'venues' && page !== 'hr' && page !== 'admins' && page !== 'lifecycle' && page !== 'financeops' && page !== 'portfolio' && page !== 'cms' && page !== 'fleet' && page !== 'mobility' && page !== 'resbook' && page !== 'guestcrm' ? <RangePicker value={range} onChange={setRange} /> : null}
           <p className="page-sub">{TITLES[page][1]}</p>
         </div>
 
@@ -201,6 +207,8 @@ export default function App() {
         {page === 'cms' ? <CmsPage /> : null}
         {page === 'fleet' ? <FleetPage /> : null}
         {page === 'mobility' ? <MobilityControlPage /> : null}
+        {page === 'resbook' ? <ReservationsPage /> : null}
+        {page === 'guestcrm' ? <GuestsPage /> : null}
       </main>
     </>
   );
