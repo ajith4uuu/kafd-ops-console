@@ -58,4 +58,5 @@ assert('open roles = pipeline rows', hr.openRoles === RECRUITMENT.length);
 assert('hired qtd sums funnel', hr.hiredQtd === RECRUITMENT.reduce((s, r) => s + r.hired, 0));
 
 console.log(`estate-admin: ${passed} passed, ${failed} failed`);
+declare const process: { exit(code: number): never };
 if (failed > 0) process.exit(1);
