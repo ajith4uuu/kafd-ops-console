@@ -191,3 +191,15 @@ input[type='text'] { min-width: 220px; }
 
 .recharts-default-tooltip { background: var(--panel) !important; border: 1px solid var(--border) !important; border-radius: 10px; }
 .recharts-tooltip-label, .recharts-tooltip-item { color: var(--text) !important; }
+
+/* Portfolio / CMS form fields */
+.fld { display: flex; flex-direction: column; gap: 4px; font-size: 11.5px; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted, #8d99af); }
+.fld input, .fld select, .fld textarea, .main td input, .main td select {
+  background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.14); border-radius: 7px;
+  color: #fff; font: 13px/1.4 inherit; padding: 7px 9px; min-width: 0;
+}
+.fld input:focus, .fld select:focus, .fld textarea:focus, .main td input:focus { outline: none; border-color: var(--amber, #e8b463); }
+.fld textarea { resize: vertical; font-family: inherit; }
+.main td select { padding: 5px 7px; font-size: 12px; }
+.main td input[type=date] { font-size: 12px; padding: 5px 7px; }
+.main td input[type=number] { font-size: 12px; padding: 5px 7px; }
