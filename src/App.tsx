@@ -9,15 +9,17 @@ import { GrowthPage } from './pages/GrowthPage';
 import { DinePage } from './pages/DinePage';
 import { GoPage } from './pages/GoPage';
 import { LivingPage } from './pages/LivingPage';
+import { EstatePage } from './pages/EstatePage';
+import { HrPage } from './pages/HrPage';
 import { OverviewPage } from './pages/OverviewPage';
 import { RafiqPage } from './pages/RafiqPage';
 import { VenuesPage } from './pages/VenuesPage';
 
 type PageId =
   | 'overview' | 'growth' | 'dine' | 'rafiq' | 'go' | 'living'
-  | 'bookings' | 'ai' | 'audit' | 'compliance' | 'venues';
+  | 'bookings' | 'ai' | 'audit' | 'compliance' | 'venues' | 'estate' | 'hr';
 
-type WorkspaceId = 'rafiq-ops' | 'property' | 'hospitality';
+type WorkspaceId = 'rafiq-ops' | 'property' | 'hospitality' | 'estate-admin';
 
 /**
  * One unified platform, three team consoles: mobility, property, and
@@ -36,6 +38,12 @@ const WORKSPACES: Record<WorkspaceId, { label: string; sub: string; home: PageId
     sub: 'Property Management Team',
     home: 'living',
     pages: ['living', 'compliance', 'bookings', 'overview', 'audit'],
+  },
+  'estate-admin': {
+    label: 'Estate Admin',
+    sub: 'Super Admin — URWA Core',
+    home: 'estate',
+    pages: ['estate', 'hr', 'overview', 'audit'],
   },
   hospitality: {
     label: 'Tables & Delivery',
@@ -57,6 +65,8 @@ const PAGE_META: Record<PageId, { icon: string; label: string }> = {
   audit: { icon: '☰', label: 'Audit Log' },
   compliance: { icon: '⚖', label: 'Compliance & Ejar' },
   venues: { icon: '🕐', label: 'Venues & Hours' },
+  estate: { icon: '🏛', label: 'Estate Ops' },
+  hr: { icon: '👥', label: 'HR & Payroll' },
 };
 
 const TITLES: Record<PageId, [string, string]> = {
@@ -71,6 +81,8 @@ const TITLES: Record<PageId, [string, string]> = {
   audit: ['Audit Log', 'Every privileged action across console, portal, API and automations'],
   compliance: ['Compliance & Ejar', 'Ejar registrations, deposit caps, the rent freeze, ZATCA e-invoices and licensed short stays'],
   venues: ['Venues & Hours', 'Real published trading hours — split services, late closes and 24-hour days'],
+  estate: ['Estate Ops', 'URWA-core operations: services volume, SLA credits, gate security and partner settlement'],
+  hr: ['HR & Payroll', 'Attendance, WPS payroll runs and the recruitment pipeline across the estate teams'],
 };
 
 function initialWorkspace(): WorkspaceId {
@@ -138,7 +150,7 @@ export default function App() {
         <div className="page-head">
           <h2 className="page-title">{TITLES[page][0]}</h2>
           <div className="spacer" />
-          {page !== 'audit' && page !== 'venues' ? <RangePicker value={range} onChange={setRange} /> : null}
+          {page !== 'audit' && page !== 'venues' && page !== 'hr' ? <RangePicker value={range} onChange={setRange} /> : null}
           <p className="page-sub">{TITLES[page][1]}</p>
         </div>
 
@@ -153,6 +165,8 @@ export default function App() {
         {page === 'audit' ? <AuditPage /> : null}
         {page === 'compliance' ? <CompliancePage range={range} /> : null}
         {page === 'venues' ? <VenuesPage /> : null}
+        {page === 'estate' ? <EstatePage range={range} /> : null}
+        {page === 'hr' ? <HrPage /> : null}
       </main>
     </>
   );

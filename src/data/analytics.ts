@@ -26,6 +26,11 @@ import {
   type Invoice,
   type WoPriority,
   type WorkOrder,
+  ESTATE_OPS_DAILY,
+  ESTATE_PARTNERS,
+  EMPLOYEES,
+  WPS_RUNS,
+  RECRUITMENT,
 } from './seed';
 
 export type Range = 7 | 30 | 90;
@@ -367,3 +372,41 @@ export function overviewKpis(n: Range) {
 
 export const AUDIT = AUDIT_LOG;
 export { DAYS };
+
+/** Estate super-admin: services volume, SLA, credits, gate and partner economics. */
+export function estateKpis(n: Range) {
+  const window = lastN(ESTATE_OPS_DAILY, n);
+  const orders = sumBy(window, (d) => d.laundry + d.housekeeping + d.roomService);
+  const missed = sumBy(window, (d) => d.slaMissed);
+  const liveGross = ESTATE_PARTNERS.filter((p) => p.status === 'live').reduce((s, p) => s + p.grossSar, 0);
+  const commission = ESTATE_PARTNERS.filter((p) => p.status === 'live').reduce((s, p) => s + p.grossSar * (p.commissionPct / 100), 0);
+  return {
+    orders,
+    slaPct: orders === 0 ? 100 : Math.round(((orders - missed) / orders) * 1000) / 10,
+    creditsPaid: Math.round(sumBy(window, (d) => d.creditsPaid)),
+    gateAllowed: sumBy(window, (d) => d.gateAllowed),
+    gateDenied: sumBy(window, (d) => d.gateDenied),
+    partnersLive: ESTATE_PARTNERS.filter((p) => p.status === 'live').length,
+    partnerGross: liveGross,
+    commission: Math.round(commission),
+    commissionVat: Math.round(commission * 0.15),
+  };
+}
+
+/** HR & payroll rollup for the Super Admin people layer. */
+export function hrKpis() {
+  const present = EMPLOYEES.filter((e) => e.attendance === 'present' || e.attendance === 'remote').length;
+  const latest = WPS_RUNS[0];
+  return {
+    headcount: EMPLOYEES.length,
+    present,
+    attendancePct: Math.round((present / EMPLOYEES.length) * 1000) / 10,
+    onLeave: EMPLOYEES.filter((e) => e.attendance === 'leave').length,
+    absent: EMPLOYEES.filter((e) => e.attendance === 'absent').length,
+    wpsMonth: latest.month,
+    wpsTotal: latest.totalSar,
+    wpsStatus: latest.status,
+    openRoles: RECRUITMENT.length,
+    hiredQtd: RECRUITMENT.reduce((s, r) => s + r.hired, 0),
+  };
+}

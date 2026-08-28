@@ -687,3 +687,150 @@ export const LIVE_FEED: readonly LiveEvent[] = [
   { time: '11:33', pillar: 'dine', text: 'Deposit captured — Benoit no-show (SAR 50)' },
   { time: '11:29', pillar: 'ai', text: 'Plan-my-evening approved: dinner + ride + parking' },
 ];
+
+// --------------------------------------------------------- estate super admin
+// URWA-core operations: home-services orders, gate security, partner
+// settlements, and the HR/WPS layer. Isolated PRNG so nothing above shifts.
+
+const rand6 = mulberry32(20261224);
+const R6 = {
+  next: () => rand6(),
+  int: (min: number, max: number) => min + Math.floor(rand6() * (max - min + 1)),
+  pick: <T,>(items: readonly T[]): T => items[Math.floor(rand6() * items.length)],
+  round2: (v: number) => Math.round(v * 100) / 100,
+};
+
+export interface DailyEstateOps {
+  day: string;
+  laundry: number;
+  housekeeping: number;
+  roomService: number;
+  /** Orders that missed their SLA promise (instant credits were paid). */
+  slaMissed: number;
+  creditsPaid: number;
+  gateAllowed: number;
+  gateDenied: number;
+}
+
+export const ESTATE_OPS_DAILY: readonly DailyEstateOps[] = DAY_KEYS.map((day, i) => {
+  const ramp = 0.55 + (i / DAYS) * 0.5;
+  const laundry = Math.round(34 * ramp + R6.int(-4, 4));
+  const housekeeping = Math.round(18 * ramp + R6.int(-3, 3));
+  const roomService = Math.round(26 * ramp + R6.int(-4, 4));
+  const total = laundry + housekeeping + roomService;
+  const slaMissed = Math.max(0, Math.round(total * (0.045 - (i / DAYS) * 0.02) + R6.int(-1, 1)));
+  return {
+    day,
+    laundry,
+    housekeeping,
+    roomService,
+    slaMissed,
+    creditsPaid: R6.round2(slaMissed * (7 + R6.next() * 6)),
+    gateAllowed: Math.round(210 * ramp + R6.int(-15, 15)),
+    gateDenied: R6.int(2, 9),
+  };
+});
+
+export interface EstatePartnerRow {
+  id: string;
+  name: string;
+  category: 'laundry' | 'housekeeping' | 'room_service';
+  agreementNo: string;
+  /** Commission rate the platform takes on this category. */
+  commissionPct: number;
+  grossSar: number;
+  rating: number;
+  status: 'live' | 'onboarding';
+}
+
+const PARTNER_NAMES: readonly [string, EstatePartnerRow['category']][] = [
+  ['KAFD Laundry Co.', 'laundry'],
+  ['Crystal Press', 'laundry'],
+  ['Wadi Housekeeping', 'housekeeping'],
+  ['Sparkle Facilities', 'housekeeping'],
+  ['Majlis Room Service', 'room_service'],
+  ['Dallah Trays', 'room_service'],
+  ['Nawa Linen Care', 'laundry'],
+  ['Tamam Home Care', 'housekeeping'],
+];
+
+export const ESTATE_PARTNERS: readonly EstatePartnerRow[] = PARTNER_NAMES.map(([name, category], i) => ({
+  id: `ep-${i + 1}`,
+  name,
+  category,
+  agreementNo: `PRT-2026-${String(100000 + i * 8317).slice(-6)}`,
+  commissionPct: category === 'laundry' ? 15 : category === 'housekeeping' ? 12 : 18,
+  grossSar: R6.int(18, 120) * 1000,
+  rating: R6.round2(4.4 + R6.next() * 0.55),
+  status: i < 6 ? 'live' : 'onboarding',
+}));
+
+// ----- HR / WPS (Super Admin people layer) -----
+
+export interface Employee {
+  id: string;
+  name: string;
+  dept: 'Captains' | 'Gate Security' | 'Housekeeping' | 'Concierge' | 'Admin';
+  basicSar: number;
+  housingSar: number;
+  otherSar: number;
+  /** Today's attendance state. */
+  attendance: 'present' | 'remote' | 'leave' | 'absent';
+}
+
+const EMP_NAMES = [
+  'Omar N.', 'Faisal A.', 'Yusuf K.', 'Hamad S.', 'Salem R.', 'Badr M.',
+  'Khalid T.', 'Nasser J.', 'Rakan D.', 'Saad W.', 'Noura S.', 'Reem A.',
+  'Lama F.', 'Dana Q.', 'Hessa B.', 'Joud E.', 'Aziz G.', 'Turki H.',
+  'Mishal V.', 'Fahad Z.', 'Sara L.', 'Maha C.', 'Ghada P.', 'Amal Y.',
+] as const;
+const DEPTS: readonly Employee['dept'][] = ['Captains', 'Captains', 'Gate Security', 'Gate Security', 'Housekeeping', 'Housekeeping', 'Concierge', 'Admin'];
+
+export const EMPLOYEES: readonly Employee[] = EMP_NAMES.map((name, i) => {
+  const dept = DEPTS[i % DEPTS.length];
+  const basic = R6.int(45, 110) * 100;
+  const roll = R6.next();
+  return {
+    id: `emp-${String(i + 1).padStart(3, '0')}`,
+    name,
+    dept,
+    basicSar: basic,
+    housingSar: Math.round(basic * 0.25),
+    otherSar: R6.int(3, 9) * 100,
+    attendance: roll < 0.78 ? 'present' : roll < 0.88 ? 'remote' : roll < 0.95 ? 'leave' : 'absent',
+  };
+});
+
+export interface WpsRun {
+  id: string;
+  month: string;
+  /** WPS Salary Information File reference submitted to the bank. */
+  sifRef: string;
+  employees: number;
+  totalSar: number;
+  status: 'accepted' | 'submitted' | 'draft';
+}
+
+const wpsTotal = EMPLOYEES.reduce((s, e) => s + e.basicSar + e.housingSar + e.otherSar, 0);
+export const WPS_RUNS: readonly WpsRun[] = [
+  { id: 'wps-3', month: 'Aug 2026', sifRef: 'WPS-SIF-202608-4417', employees: EMPLOYEES.length, totalSar: wpsTotal, status: 'submitted' },
+  { id: 'wps-2', month: 'Jul 2026', sifRef: 'WPS-SIF-202607-3902', employees: EMPLOYEES.length, totalSar: wpsTotal - 1800, status: 'accepted' },
+  { id: 'wps-1', month: 'Jun 2026', sifRef: 'WPS-SIF-202606-3341', employees: EMPLOYEES.length - 2, totalSar: wpsTotal - 15400, status: 'accepted' },
+];
+
+export interface RecruitmentRole {
+  role: string;
+  dept: Employee['dept'];
+  applied: number;
+  screening: number;
+  interview: number;
+  offer: number;
+  hired: number;
+}
+
+export const RECRUITMENT: readonly RecruitmentRole[] = [
+  { role: 'Service Captain', dept: 'Captains', applied: 142, screening: 58, interview: 21, offer: 8, hired: 5 },
+  { role: 'Gate Officer', dept: 'Gate Security', applied: 96, screening: 40, interview: 14, offer: 6, hired: 4 },
+  { role: 'Housekeeping Lead', dept: 'Housekeeping', applied: 63, screening: 24, interview: 9, offer: 3, hired: 2 },
+  { role: 'Night Concierge', dept: 'Concierge', applied: 51, screening: 19, interview: 7, offer: 2, hired: 1 },
+];
