@@ -63,6 +63,7 @@ const REF_MIN = 18;
 
 export function MobilityControlPage() {
   const [state, setState] = useState<MobilityState>(loadMobility);
+  const [editingPromo, setEditingPromo] = useState<string | null>(null);
 
   useEffect(() => {
     try {
@@ -233,75 +234,70 @@ export function MobilityControlPage() {
 
       <Card
         title="Ride promos"
-        foot="A promo dies three ways: the window closes, someone pauses it, or the budget runs dry — exhaustion beats the clock, so spend can never exceed budget."
+        foot="Each row reads as a sentence; Edit opens fields for that promo only. A promo dies three ways: the window closes, someone pauses it, or the budget runs dry — exhaustion beats the clock, so spend can never exceed budget."
         data-testid="promos-card"
       >
-        <div style={{ marginBottom: 10 }}>
+        <div style={{ marginBottom: 12 }}>
           <button className="btn primary" onClick={newPromo}>+ New promo</button>
         </div>
-        <DataTable<RidePromo>
-          rowKey={(p) => p.id}
-          columns={[
-            {
-              key: 'code',
-              label: 'Code',
-              render: (p) => (
-                <input value={p.code} style={{ width: 110, fontFamily: 'monospace', letterSpacing: 1 }} onChange={(e) => patchPromo(p.id, (x) => ({ ...x, code: e.target.value.toUpperCase() }))} />
-              ),
-            },
-            {
-              key: 'value',
-              label: 'Value',
-              render: (p) => (
-                <span style={{ display: 'inline-flex', gap: 4 }}>
-                  <input type="number" value={p.value} style={{ width: 58 }} onChange={(e) => patchPromo(p.id, (x) => ({ ...x, value: Number(e.target.value) }))} />
-                  <select value={p.kind} onChange={(e) => patchPromo(p.id, (x) => ({ ...x, kind: e.target.value as RidePromo['kind'] }))}>
-                    <option value="percent">%</option>
-                    <option value="amount">SAR</option>
-                  </select>
+        {state.promos.map((p) => {
+          const issues = promoIssues(p);
+          const eff = promoEffectiveState(p, TODAY_KEY);
+          const burn = Math.min(100, Math.round((p.spentSar / p.budgetSar) * 100));
+          const editing = editingPromo === p.id;
+          return (
+            <div key={p.id} className={`vrow ${editing ? 'editing' : ''}`}>
+              <span className="vtitle" style={{ fontFamily: 'monospace', letterSpacing: 1 }}>{p.code}</span>
+              <span className="vmeta"><strong style={{ color: 'var(--amber)' }}>{p.kind === 'percent' ? `${p.value}% off` : `SAR ${p.value} off`}</strong> · cap {sar(p.perRideCapSar)}/ride</span>
+              <span className="vmeta">{p.validFrom} → {p.validTo}</span>
+              <span className="vmeta">{num(p.redemptions)} used</span>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, minWidth: 110 }}>
+                <span style={{ flex: 1, height: 6, borderRadius: 3, background: 'rgba(255,255,255,0.1)', minWidth: 60 }}>
+                  <span style={{ display: 'block', height: 6, borderRadius: 3, width: `${burn}%`, background: burn >= 95 ? 'var(--red)' : 'var(--green)' }} />
                 </span>
-              ),
-            },
-            { key: 'cap', label: 'Cap/ride', render: (p) => sar(p.perRideCapSar) },
-            {
-              key: 'budget',
-              label: 'Budget burn',
-              render: (p) => {
-                const pct = Math.min(100, Math.round((p.spentSar / p.budgetSar) * 100));
-                return (
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, minWidth: 150 }}>
-                    <span style={{ flex: 1, height: 6, borderRadius: 3, background: 'rgba(255,255,255,0.1)', minWidth: 70 }}>
-                      <span style={{ display: 'block', height: 6, borderRadius: 3, width: `${pct}%`, background: pct >= 95 ? '#ff8da1' : '#7ecb93' }} />
-                    </span>
-                    <span style={{ fontSize: 11.5 }}>{pct}%</span>
-                  </span>
-                );
-              },
-            },
-            { key: 'red', label: 'Used', render: (p) => num(p.redemptions) },
-            {
-              key: 'state',
-              label: 'State',
-              render: (p) => {
-                const issues = promoIssues(p);
-                const eff = promoEffectiveState(p, TODAY_KEY);
-                return (
-                  <span style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
-                    <Badge tone={PROMO_TONE[eff]}>{eff}</Badge>
-                    {issues.length > 0 ? (
-                      <span title={issues.join('; ')} style={{ color: '#ff8da1', fontSize: 11 }}>✕</span>
-                    ) : eff === 'draft' || eff === 'paused' ? (
-                      <button className="btn primary" onClick={() => patchPromo(p.id, (x) => ({ ...x, state: 'live' }))}>Publish</button>
-                    ) : eff === 'live' || eff === 'scheduled' ? (
-                      <button className="btn" onClick={() => patchPromo(p.id, (x) => ({ ...x, state: 'paused' }))}>Pause</button>
-                    ) : null}
-                  </span>
-                );
-              },
-            },
-          ]}
-          rows={state.promos}
-        />
+                <span className="vmeta">{burn}%</span>
+              </span>
+              <span className="vspacer" />
+              <Badge tone={PROMO_TONE[eff]}>{eff}</Badge>
+              {issues.length > 0 ? (
+                <span title={issues.join('; ')} style={{ color: 'var(--red)', fontSize: 12 }}>✕</span>
+              ) : eff === 'draft' || eff === 'paused' ? (
+                <button className="btn primary" onClick={() => patchPromo(p.id, (x) => ({ ...x, state: 'live' }))}>Publish</button>
+              ) : eff === 'live' || eff === 'scheduled' ? (
+                <button className="btn" onClick={() => patchPromo(p.id, (x) => ({ ...x, state: 'paused' }))}>Pause</button>
+              ) : null}
+              <button className="btn ghost" onClick={() => setEditingPromo(editing ? null : p.id)}>{editing ? 'Done' : 'Edit'}</button>
+              {editing && (
+                <div className="editpanel">
+                  <label className="fld">Code
+                    <input value={p.code} onChange={(e) => patchPromo(p.id, (x) => ({ ...x, code: e.target.value.toUpperCase() }))} />
+                  </label>
+                  <label className="fld">Value
+                    <input type="number" value={p.value} onChange={(e) => patchPromo(p.id, (x) => ({ ...x, value: Number(e.target.value) }))} />
+                  </label>
+                  <label className="fld">Unit
+                    <select value={p.kind} onChange={(e) => patchPromo(p.id, (x) => ({ ...x, kind: e.target.value as RidePromo['kind'] }))}>
+                      <option value="percent">% off</option>
+                      <option value="amount">SAR off</option>
+                    </select>
+                  </label>
+                  <label className="fld">Cap / ride (SAR)
+                    <input type="number" value={p.perRideCapSar} onChange={(e) => patchPromo(p.id, (x) => ({ ...x, perRideCapSar: Number(e.target.value) }))} />
+                  </label>
+                  <label className="fld">Budget (SAR)
+                    <input type="number" value={p.budgetSar} onChange={(e) => patchPromo(p.id, (x) => ({ ...x, budgetSar: Number(e.target.value) }))} />
+                  </label>
+                  <label className="fld">Starts
+                    <input type="date" value={p.validFrom} onChange={(e) => patchPromo(p.id, (x) => ({ ...x, validFrom: e.target.value }))} />
+                  </label>
+                  <label className="fld">Ends
+                    <input type="date" value={p.validTo} onChange={(e) => patchPromo(p.id, (x) => ({ ...x, validTo: e.target.value }))} />
+                  </label>
+                </div>
+              )}
+            </div>
+          );
+        })}
       </Card>
 
       <Card

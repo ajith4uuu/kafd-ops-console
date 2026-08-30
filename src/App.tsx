@@ -146,7 +146,8 @@ export default function App() {
     <>
       <nav className="sidebar">
         <h1 className="brand">KΛFD</h1>
-        <p className="brand-sub">{ws.sub}</p>
+        <p className="brand-sub">Ops Console</p>
+        <p className="side-label">Workspace</p>
         <div className="ws-switch" role="tablist" aria-label="Console workspace">
           {(Object.keys(WORKSPACES) as WorkspaceId[]).map((id) => (
             <button
@@ -157,9 +158,11 @@ export default function App() {
               onClick={() => switchWorkspace(id)}
             >
               {WORKSPACES[id].label}
+              <span className="ws-sub">{WORKSPACES[id].sub}</span>
             </button>
           ))}
         </div>
+        <p className="side-label">Pages</p>
         {ws.pages.map((id) => (
           <button
             key={id}
@@ -173,7 +176,7 @@ export default function App() {
           </button>
         ))}
         <div className="sidebar-footer">
-          One platform · three team consoles
+          One platform · role-scoped consoles
           <br />
           Seeded demo data · 90 days
         </div>
@@ -181,6 +184,7 @@ export default function App() {
 
       <main className="main">
         <div className="page-head">
+          <p className="crumb"><b>{ws.label}</b> · {PAGE_META[page].label}</p>
           <h2 className="page-title">{TITLES[page][0]}</h2>
           <div className="spacer" />
           {page !== 'audit' && page !== 'venues' && page !== 'hr' && page !== 'admins' && page !== 'lifecycle' && page !== 'financeops' && page !== 'portfolio' && page !== 'cms' && page !== 'fleet' && page !== 'mobility' && page !== 'resbook' && page !== 'guestcrm' ? <RangePicker value={range} onChange={setRange} /> : null}
